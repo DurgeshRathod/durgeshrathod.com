@@ -1,5 +1,5 @@
 ---
-import { SITE, CONTACT, PROFILES, NAV, NAV_SECONDARY } from '../consts.ts';
+import { SITE, CONTACT, PROFILES, NAV, NAV_SECONDARY, HAS_ANALYTICS } from '../consts.ts';
 import { href } from '../lib/paths.ts';
 import { waLink, WA_MESSAGES } from '../lib/whatsapp.ts';
 import Availability from './Availability.astro';
@@ -124,7 +124,14 @@ const elsewhere = [
       class="mt-10 flex flex-col gap-2 border-t pt-6 text-xs sm:flex-row sm:items-center sm:justify-between"
       style="color: var(--fg-subtle);"
     >
-      <p>© {year} {SITE.name}. Built as a static site — no tracking cookies.</p>
+      <p>
+        © {year} {SITE.name}. Static site.{' '}
+        {
+          HAS_ANALYTICS
+            ? 'Google Analytics is used to see which pages are read — no advertising or cross-site tracking.'
+            : 'No cookies, no tracking.'
+        }
+      </p>
       <p class="font-mono">
         {SITE.location} · {SITE.utcOffset}
       </p>

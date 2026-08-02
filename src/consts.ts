@@ -68,6 +68,19 @@ export const NOW = {
   ],
 } as const;
 
+/**
+ * Analytics. The GA4 measurement ID is public by design — it appears in page source on
+ * every site that uses it, so committing it is not a leak.
+ *
+ * Set `ga4` to '' to remove analytics entirely, including the third-party script and the
+ * cookie notice in the footer. Nothing else needs changing.
+ */
+export const ANALYTICS = {
+  ga4: 'G-3G7Z109J0T',
+} as const;
+
+export const HAS_ANALYTICS = ANALYTICS.ga4.length > 0;
+
 export const PROFILES = {
   linkedin: 'https://www.linkedin.com/in/durgesh-rathod-711a959b/',
   github: 'https://github.com/DurgeshRathod',

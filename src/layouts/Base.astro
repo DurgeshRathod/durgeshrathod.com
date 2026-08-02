@@ -4,7 +4,7 @@ import Seo from '../components/Seo.astro';
 import Nav from '../components/Nav.astro';
 import Footer from '../components/Footer.astro';
 import CommandPalette from '../components/CommandPalette.astro';
-import { SITE } from '../consts.ts';
+import { SITE, ANALYTICS, HAS_ANALYTICS } from '../consts.ts';
 import { href } from '../lib/paths.ts';
 
 interface Props {
@@ -54,6 +54,35 @@ const { prose = false, ...seo } = Astro.props;
     <link rel="sitemap" type="application/xml" href={href('/sitemap-index.xml')} />
 
     <Seo {...seo} />
+
+    {
+      /*
+        Google Analytics 4. Deliberately the only third-party script on the site, and the
+        only thing that sets a cookie — which is why the footer notice is conditional on it.
+
+        preconnect first so the DNS and TLS handshake overlap with HTML parsing rather than
+        blocking on it. `async` and `is:inline` keep the snippet verbatim: Astro would
+        otherwise try to bundle it, and a bundled gtag loader does not work.
+      */
+      HAS_ANALYTICS && (
+        <>
+          <link rel="preconnect" href="https://www.googletagmanager.com" crossorigin />
+          <script
+            async
+            src={`https://www.googletagmanager.com/gtag/js?id=${ANALYTICS.ga4}`}
+            is:inline
+          />
+          <script is:inline define:vars={{ gaId: ANALYTICS.ga4 }}>
+            window.dataLayer = window.dataLayer || [];
+            function gtag() {
+              dataLayer.push(arguments);
+            }
+            gtag('js', new Date());
+            gtag('config', gaId);
+          </script>
+        </>
+      )
+    }
   </head>
 
   <body class="min-h-dvh flex flex-col">
@@ -73,6 +102,45 @@ const { prose = false, ...seo } = Astro.props;
 
     <Footer />
     <CommandPalette />
+
+    {
+      /*
+        Sends a GA4 event for every element carrying data-analytics. Every CTA on the site
+        is tagged with its placement (hero-whatsapp, scorecard-whatsapp, calculator-whatsapp,
+        …), so this turns "someone clicked WhatsApp" into "someone clicked WhatsApp from the
+        cost calculator" — which is the difference between knowing you got a lead and knowing
+        which page produced it.
+
+        Uses capture-phase listening on document so it survives dynamically inserted nodes,
+        and does nothing at all when analytics is disabled.
+      */
+      HAS_ANALYTICS && (
+        <script is:inline>
+          {`
+          (function () {
+            document.addEventListener(
+              'click',
+              function (ev) {
+                var el = ev.target && ev.target.closest ? ev.target.closest('[data-analytics]') : null;
+                if (!el || typeof window.gtag !== 'function') return;
+                var name = el.getAttribute('data-analytics') || 'unknown';
+                // Split "scorecard-whatsapp" into channel + placement for cleaner reporting.
+                var parts = name.split('-');
+                var channel = parts[parts.length - 1];
+                window.gtag('event', 'cta_click', {
+                  cta: name,
+                  channel: channel,
+                  placement: parts.slice(0, -1).join('-') || 'site',
+                  page_path: location.pathname,
+                });
+              },
+              true
+            );
+          })();
+        `}
+        </script>
+      )
+    }
 
     <!--
       Scroll reveal. The [data-reveal-ready] flag is added by JS, so without JS
