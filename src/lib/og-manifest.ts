@@ -6,7 +6,7 @@ import decisions from '../data/decisions.json';
 /**
  * Pages that get a generated Open Graph image.
  *
- * Slugs mirror the path with '/' replaced by '-' (see Seo.astro), so /tools/failure-taxonomy
+ * Slugs mirror the path with '/' replaced by '-' (see Seo.astro), so /tools/ai-agent-failure-modes
  * resolves to /og/tools-failure-taxonomy.png. Keeping one explicit manifest means the image
  * set is auditable rather than implicit.
  */

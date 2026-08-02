@@ -35,9 +35,9 @@ Take a representative request at a representative turn depth and count tokens by
 
 Two findings recur.
 
-**History dominates at depth.** Resending the transcript each turn makes per-turn cost grow linearly with turn count. A 40-turn conversation can cost roughly twenty times a 5-turn one. Teams monitoring request *counts* see flat traffic while spend multiplies — which is the mechanism behind most [unexplained cost spikes](/tools/failure-taxonomy#unexpected-llm-cost-spike).
+**History dominates at depth.** Resending the transcript each turn makes per-turn cost grow linearly with turn count. A 40-turn conversation can cost roughly twenty times a 5-turn one. Teams monitoring request *counts* see flat traffic while spend multiplies — which is the mechanism behind most [unexplained cost spikes](/tools/ai-agent-failure-modes#unexpected-llm-cost-spike).
 
-**Tool definitions are bigger than anyone guesses.** They are billed on every call, used or not, plus a provider preamble of roughly 286–804 tokens depending on the model. I have written that up separately as [the tool-definition tax](/notes/tool-definition-tax) — the short version is that teams are routinely out by a factor of two or three.
+**Tool definitions are bigger than anyone guesses.** They are billed on every call, used or not, plus a provider preamble of roughly 286–804 tokens depending on the model. I have written that up separately as [the tool-definition tax](/notes/tool-definition-token-cost) — the short version is that teams are routinely out by a factor of two or three.
 
 The [cost calculator](/tools/agent-cost-calculator) keeps these as separate inputs precisely so you can see the split rather than one aggregate number.
 
@@ -47,7 +47,7 @@ Cost is the obvious argument. The quality argument matters more and gets less at
 
 As the input grows, your instructions become a smaller and more distant fraction of it. Early turns follow the rules; by turn twenty the agent has drifted — wrong tone, abandoned constraints, forgotten refusals. Nothing errored. The instructions are simply competing with an ever-growing transcript for attention.
 
-Reproduce it directly: run a 30-turn conversation and check whether compliance decays with turn count. If it does, you have [context degradation](/tools/failure-taxonomy#agent-forgets-instructions-long-conversations) rather than a prompt-quality problem, and rewriting the prompt will not fix it.
+Reproduce it directly: run a 30-turn conversation and check whether compliance decays with turn count. If it does, you have [context degradation](/tools/ai-agent-failure-modes#agent-forgets-instructions-long-conversations) rather than a prompt-quality problem, and rewriting the prompt will not fix it.
 
 Two consequences worth internalising:
 
@@ -75,7 +75,7 @@ Retrieved context is usually the second-largest category and the least examined.
 
 Two checks:
 
-**Is the answer actually in what you retrieved?** Search for a question you know the answer to and read the chunks. Over-fetching to compensate for poor retrieval is expensive and does not fix the underlying problem — [retrieval failures](/tools/failure-taxonomy#rag-returns-irrelevant-results) need measuring separately from answer quality, or you will tune generation prompts while the defect is upstream.
+**Is the answer actually in what you retrieved?** Search for a question you know the answer to and read the chunks. Over-fetching to compensate for poor retrieval is expensive and does not fix the underlying problem — [retrieval failures](/tools/ai-agent-failure-modes#rag-returns-irrelevant-results) need measuring separately from answer quality, or you will tune generation prompts while the defect is upstream.
 
 **Did it change silently?** A reindex or a changed top-k multiplies input tokens on every call with no code change. Compare average retrieved-context length before and after your last indexing change.
 

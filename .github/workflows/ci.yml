@@ -95,6 +95,42 @@ jobs:
             if (bad) process.exit(1);
           '
 
+      - name: Check — no broken internal links or anchors
+        run: |
+          node --input-type=module -e '
+            import fs from "node:fs";
+            import path from "node:path";
+            const walk = (d) => fs.readdirSync(d, { withFileTypes: true })
+              .flatMap((e) => e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]);
+            const files = walk("dist");
+            const html = files.filter((f) => f.endsWith(".html"));
+            const exists = (p) => {
+              if (p === "/") return fs.existsSync("dist/index.html");
+              return fs.existsSync("dist" + p) || fs.existsSync("dist" + p + "/index.html") || fs.existsSync("dist" + p + ".html");
+            };
+            const anchors = new Map();
+            for (const f of html) {
+              const h = fs.readFileSync(f, "utf8");
+              const route = "/" + path.relative("dist", f).replace(/\/?index\.html$/, "");
+              anchors.set(route === "/" ? "/" : route, new Set([...h.matchAll(/id="([^"]+)"/g)].map((m) => m[1])));
+            }
+            let bad = 0;
+            for (const f of html) {
+              const h = fs.readFileSync(f, "utf8");
+              const from = "/" + path.relative("dist", f).replace(/\/?index\.html$/, "");
+              for (const m of h.matchAll(/href="(\/[^"#?]*)(#[^"]*)?"/g)) {
+                const target = m[1].replace(/\/$/, "") || "/";
+                const frag = (m[2] || "").slice(1);
+                if (!exists(target)) { console.log(`::error::${from} links to missing ${target}`); bad++; continue; }
+                if (frag && anchors.has(target) && !anchors.get(target).has(frag)) {
+                  console.log(`::error::${from} links to ${target}#${frag} but that anchor does not exist`); bad++;
+                }
+              }
+            }
+            console.log(bad ? `${bad} broken internal link(s)` : "All internal links and anchors resolve");
+            if (bad) process.exit(1);
+          '
+
       - name: Check — data tables are well formed
         run: |
           node --input-type=module -e '

@@ -87,7 +87,7 @@ Further background: 9+ years across telecom, HR technology, recruitment and work
 
 - [Agent Production Readiness Scorecard](${u}/scorecard): ${scorecard.questions.length}-question assessment scoring an agent system 0–100 across reliability, cost and observability. Runs entirely in the browser, no signup, no data leaves the page.
 - [Agent Cost Calculator](${u}/tools/agent-cost-calculator): models monthly LLM spend from conversation volume, token counts, retry rate and cache hit rate. Includes provider pricing verified ${scorecard.meta.updated}, and accounts for factors most calculators omit — tool-definition tokens billed on every call, cache-write premiums, and tokenizer differences between model generations.
-- [AI Agent Failure Taxonomy](${u}/tools/failure-taxonomy): ${taxonomy.symptoms.length} named production failure modes, each with root causes, diagnostic checks and fixes with effort estimates.
+- [AI Agent Failure Taxonomy](${u}/tools/ai-agent-failure-modes): ${taxonomy.symptoms.length} named production failure modes, each with root causes, diagnostic checks and fixes with effort estimates.
 
 ## The failure taxonomy (named categories)
 
@@ -96,7 +96,7 @@ ${taxonomy.meta.premise}
 ${taxonomy.symptoms
   .map(
     (s) =>
-      `- **${s.symptom}** (\`${s.id}\`, ${s.severity} severity, ${s.frequency}) — ${s.summary} → ${u}/tools/failure-taxonomy#${s.slug}`
+      `- **${s.symptom}** (\`${s.id}\`, ${s.severity} severity, ${s.frequency}) — ${s.summary} → ${u}/tools/ai-agent-failure-modes#${s.slug}`
   )
   .join('\n')}
 

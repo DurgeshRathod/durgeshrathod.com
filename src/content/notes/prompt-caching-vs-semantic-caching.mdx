@@ -39,7 +39,7 @@ Which means **caching a prefix that is never reused makes it more expensive**, a
 
 The check is one query: what is your actual hit rate? If you cannot answer, you do not know whether your cache is working. That is why `cache_read_tokens` is a required field in the [trace spec I implement](/solutions/llm-observability) — without it, cache effectiveness is invisible.
 
-What to cache: system prompts and tool definitions. Stable text, re-read on every call, and [tool definitions are billed on every request anyway](/notes/tool-definition-tax) so they are the highest-value candidate.
+What to cache: system prompts and tool definitions. Stable text, re-read on every call, and [tool definitions are billed on every request anyway](/notes/tool-definition-token-cost) so they are the highest-value candidate.
 
 What not to cache: anything that changes per request, and anything with traffic too sparse to hit before expiry.
 
@@ -51,7 +51,7 @@ That is a much bigger claim than prompt caching makes. You are asserting that tw
 
 Sometimes true. *"What's your refund window?"* and *"How long do I have to return something?"* probably share an answer. But similarity is not equivalence, and the gap is where it breaks:
 
-**Similar questions with different answers.** *"Can I cancel?"* and *"Can I cancel for free?"* are embedding-close and have materially different answers. This is the same failure as [semantic similarity mistaken for relevance in retrieval](/tools/failure-taxonomy#rag-returns-irrelevant-results) — same mechanism, worse consequence, because you are not just retrieving the wrong context, you are shipping a stored answer for a question nobody asked.
+**Similar questions with different answers.** *"Can I cancel?"* and *"Can I cancel for free?"* are embedding-close and have materially different answers. This is the same failure as [semantic similarity mistaken for relevance in retrieval](/tools/ai-agent-failure-modes#rag-returns-irrelevant-results) — same mechanism, worse consequence, because you are not just retrieving the wrong context, you are shipping a stored answer for a question nobody asked.
 
 **Time-sensitive answers.** *"What's my balance?"* cached for an hour is a wrong answer with a plausible shape.
 

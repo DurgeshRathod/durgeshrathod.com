@@ -29,14 +29,14 @@ const schema = [
   toolSchema({
     name: meta.title,
     description: meta.description,
-    path: '/tools/failure-taxonomy',
+    path: '/tools/ai-agent-failure-modes',
     category: 'ReferenceApplication',
   }),
   faqSchema(faqs),
   breadcrumbSchema([
     { name: 'Home', path: '/' },
     { name: 'Tools', path: '/tools' },
-    { name: 'Failure Taxonomy', path: '/tools/failure-taxonomy' },
+    { name: 'Failure Taxonomy', path: '/tools/ai-agent-failure-modes' },
   ]),
 ];
 
@@ -46,7 +46,7 @@ const severities = ['critical', 'high', 'medium'];
 <Base
   title="AI Agent Failure Taxonomy — 9 ways production agents fail, and how to fix each"
   description={meta.description}
-  path="/tools/failure-taxonomy"
+  path="/tools/ai-agent-failure-modes"
   schema={schema}
   published="2026-08-02"
 >

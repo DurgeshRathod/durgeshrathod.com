@@ -43,7 +43,7 @@ listed in `meta.sources`. Two are time-sensitive:
 
 - **Claude Sonnet 5 introductory pricing ends 31 Aug 2026** ($2/$10 → $3/$15). After that
   date the default preset understates cost by ~50% until you update it.
-- Tool-use system prompt token counts quoted in `src/content/notes/tool-definition-tax.mdx`
+- Tool-use system prompt token counts quoted in `src/content/notes/tool-definition-token-cost.mdx`
   change between model releases.
 
 Stale pricing on a page selling cost expertise is worse than having no calculator. Update
@@ -304,7 +304,7 @@ engines — verify it stays true if you refactor:
 
 ```bash
 npm run build
-grep -c "data-symptom" dist/tools/failure-taxonomy/index.html   # expect 9 (+2 attr refs)
+grep -c "data-symptom" dist/tools/ai-agent-failure-modes/index.html   # expect 9 (+2 attr refs)
 grep -q "No regression safety net" dist/scorecard/index.html && echo "scorecard crawlable"
 ```
 

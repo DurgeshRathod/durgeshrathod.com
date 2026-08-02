@@ -50,7 +50,7 @@ const entries: Entry[] = [
   },
   {
     t: 'AI Agent Failure Taxonomy',
-    u: href('/tools/failure-taxonomy'),
+    u: href('/tools/ai-agent-failure-modes'),
     k: 'Tool',
     d: `${taxonomy.symptoms.length} named failure modes with causes and fixes`,
     x: 'debug troubleshoot broken errors symptoms',
@@ -85,7 +85,7 @@ const entries: Entry[] = [
   })),
   ...taxonomy.symptoms.map((s) => ({
     t: s.symptom,
-    u: `${href('/tools/failure-taxonomy')}#${s.slug}`,
+    u: `${href('/tools/ai-agent-failure-modes')}#${s.slug}`,
     k: 'Failure mode',
     d: `${s.severity} · ${s.frequency}`,
     x: s.aka.join(' '),

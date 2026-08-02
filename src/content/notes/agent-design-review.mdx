@@ -39,7 +39,7 @@ Two numbers, both required: a maximum step count and a token budget. A wall-cloc
 
 The single most diagnostic question, because the answer usually reveals whether validation exists anywhere in the system.
 
-Then push further: what does the tool return *on failure*? `Error 500` gives the model nothing to change, so it retries the identical call. `Customer 4471 not found — search by email instead` gives it a different action. A large share of [runaway loops](/tools/failure-taxonomy#agent-loops-forever) are caused by unactionable error messages, which is a tool design problem and free to fix at this stage.
+Then push further: what does the tool return *on failure*? `Error 500` gives the model nothing to change, so it retries the identical call. `Customer 4471 not found — search by email instead` gives it a different action. A large share of [runaway loops](/tools/ai-agent-failure-modes#agent-loops-forever) are caused by unactionable error messages, which is a tool design problem and free to fix at this stage.
 
 ## 4. What is it supposed to refuse?
 
@@ -51,7 +51,7 @@ Ask for the refusal list explicitly, and confirm it will be tested. What an agen
 
 Anything another system consumes should be a schema, not a sentence someone parses. Prose invites rephrasing, and rephrasing is where substantive drift hides — the decision changes while the wording changes, and nothing notices.
 
-This one decision removes a large class of [non-determinism](/tools/failure-taxonomy#same-input-different-output) and makes most of the eval suite deterministic rather than needing a judge.
+This one decision removes a large class of [non-determinism](/tools/ai-agent-failure-modes#same-input-different-output) and makes most of the eval suite deterministic rather than needing a judge.
 
 ## 6. What gets written to the trace?
 

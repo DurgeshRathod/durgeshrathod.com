@@ -234,7 +234,7 @@ ${taxonomy.symptoms
     (s) => `### ${s.symptom}
 
 - ID: ${s.id}
-- URL: ${SITE.url}/tools/failure-taxonomy#${s.slug}
+- URL: ${SITE.url}/tools/ai-agent-failure-modes#${s.slug}
 - Pillar: ${s.pillar}
 - Frequency: ${s.frequency}
 - Severity: ${s.severity}
