@@ -8,7 +8,8 @@
     "build": "astro build",
     "preview": "astro preview",
     "check": "astro check",
-    "delivery": "node scripts/build-delivery-kit.mjs"
+    "delivery": "node scripts/build-delivery-kit.mjs",
+    "icons": "node scripts/build-icons.mjs"
   },
   "dependencies": {
     "@astrojs/mdx": "^7.0.5",
