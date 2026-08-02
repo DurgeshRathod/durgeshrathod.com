@@ -1,0 +1,102 @@
+name: CI
+
+# Verifies every push builds, and guards the two invariants that are easy to break
+# silently. Deployment is handled by Cloudflare Pages, which builds from this repo
+# directly — so this workflow does not deploy anything.
+#
+# A GitHub Pages deploy workflow lived here previously. It failed because Pages was
+# never enabled, and a github.io mirror of a custom-domain site adds nothing. If it is
+# ever wanted: git log --diff-filter=D -- .github/workflows/deploy-github-pages.yml
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        env:
+          SITE_URL: ${{ vars.SITE_URL || 'https://durgeshrathod.com' }}
+        run: npm run build
+
+      - name: Guard — no internal delivery material in the build output
+        run: |
+          FOUND=$(find dist -type f \
+            \( -iname '*playbook*' -o -iname '*findings-tracker*' \
+               -o -iname '*proposal-template*' -o -iname '*engagement-log*' \
+               -o -iname '*capacity*' -o -iname '*pipeline-tracker*' \) 2>/dev/null || true)
+          if [ -n "$FOUND" ]; then
+            echo "::error::Internal delivery material found in dist/:"
+            echo "$FOUND"
+            exit 1
+          fi
+          echo "No delivery material in dist ✓"
+
+      - name: Guard — delivery kit generator must not be tracked
+        run: |
+          if git ls-files --error-unmatch scripts/build-delivery-kit.mjs >/dev/null 2>&1; then
+            echo "::error::scripts/build-delivery-kit.mjs is tracked. It contains pricing"
+            echo "::error::logic, the capacity model and objection scripts. This repo is public."
+            exit 1
+          fi
+          echo "Generator not tracked ✓"
+
+      - name: Check — every page has one h1, a canonical, and valid JSON-LD
+        run: |
+          node --input-type=module -e '
+            import fs from "node:fs";
+            import path from "node:path";
+            const walk = (d) => fs.readdirSync(d, { withFileTypes: true })
+              .flatMap((e) => e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]);
+            const html = walk("dist").filter((f) => f.endsWith(".html"));
+            let bad = 0;
+            for (const f of html) {
+              const h = fs.readFileSync(f, "utf8");
+              const m = h.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
+              if (!m) { console.log(`::error file=${f}::no JSON-LD`); bad++; }
+              else { try { JSON.parse(m[1]); } catch { console.log(`::error file=${f}::invalid JSON-LD`); bad++; } }
+              const h1 = (h.match(/<h1[\s>]/g) || []).length;
+              if (h1 !== 1) { console.log(`::error file=${f}::${h1} h1 tags, expected 1`); bad++; }
+              if (!/rel="canonical"/.test(h)) { console.log(`::error file=${f}::no canonical`); bad++; }
+            }
+            console.log(`${html.length} pages checked, ${bad} problem(s)`);
+            if (bad) process.exit(1);
+          '
+
+      - name: Check — data tables are well formed
+        run: |
+          node --input-type=module -e '
+            import fs from "node:fs";
+            let bad = 0;
+            for (const f of ["solutions.json", "industries.json", "decisions.json"]) {
+              const d = JSON.parse(fs.readFileSync(`src/data/${f}`, "utf8"));
+              for (const item of d.solutions || d.industries || d.decisions) {
+                for (const k of ["asset", "secondAsset"]) {
+                  const a = item[k];
+                  if (!a || a.kind !== "table") continue;
+                  a.rows.forEach((r, i) => {
+                    if (r.length !== a.columns.length) {
+                      console.log(`::error::${f} › ${item.slug} › ${k} › row ${i}: ${r.length} cells vs ${a.columns.length} columns`);
+                      bad++;
+                    }
+                  });
+                }
+              }
+            }
+            console.log(bad ? `${bad} malformed table row(s)` : "All tables well formed");
+            if (bad) process.exit(1);
+          '
