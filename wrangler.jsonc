@@ -15,6 +15,14 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "durgeshrathod-com",
   "compatibility_date": "2026-08-02",
+  // Removes the durgeshrathod-com.durgeshrathod-777.workers.dev route.
+  //
+  // That hostname served a complete, crawlable third copy of the site. Every page there
+  // canonicalises to durgeshrathod.com, so it was not competing for rankings — but Google
+  // still had to fetch all 40 URLs to learn that, and a new domain's crawl budget is small
+  // enough that spending it on duplicates measurably delays indexing of the real pages.
+  // The apex domain is the only route this site should answer on.
+  "workers_dev": false,
   "assets": {
     "directory": "./dist",
     // Astro emits /404.html; serve it for unmatched paths rather than a bare Cloudflare error.
