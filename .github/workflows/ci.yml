@@ -77,6 +77,24 @@ jobs:
             if (bad) process.exit(1);
           '
 
+      - name: Check — sitemap URLs match canonical tags exactly
+        run: |
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const sm = [...fs.readFileSync("dist/sitemap-0.xml", "utf8")
+              .matchAll(/<loc>([^<]*)<\/loc>/g)].map((m) => m[1]);
+            let bad = 0;
+            for (const u of sm) {
+              const p = new URL(u).pathname;
+              const f = "dist" + (p === "/" ? "/index.html" : p + "/index.html");
+              if (!fs.existsSync(f)) { console.log(`::error::sitemap lists ${u} but no file exists`); bad++; continue; }
+              const c = (fs.readFileSync(f, "utf8").match(/<link rel="canonical" href="([^"]*)"/) || [])[1];
+              if (c !== u) { console.log(`::error::sitemap ${u} != canonical ${c}`); bad++; }
+            }
+            console.log(`${sm.length} sitemap URLs checked, ${bad} mismatch(es)`);
+            if (bad) process.exit(1);
+          '
+
       - name: Check — data tables are well formed
         run: |
           node --input-type=module -e '

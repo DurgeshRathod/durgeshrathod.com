@@ -15,10 +15,17 @@ export const ID = {
   service: `${SITE.url}/#service`,
 } as const;
 
-/** Canonical URL: absolute, no trailing slash, no index suffix. One URL per page. */
+/**
+ * Canonical URL: absolute, no trailing slash, no index suffix. One spelling per page.
+ *
+ * The root is the exception and gets a trailing slash. Not a style choice — the WHATWG URL
+ * API normalises `new URL('https://x.com').href` to `'https://x.com/'`, so @astrojs/sitemap
+ * cannot emit a bare origin however it is serialised. Matching it here keeps the sitemap and
+ * the canonical tag byte-identical, which is assertable in CI rather than merely intended.
+ */
 export function canonical(pathname: string): string {
   const clean = pathname.replace(/\/index\.html?$/, '').replace(/\/+$/, '');
-  return `${SITE.url}${clean || ''}` || SITE.url;
+  return clean ? `${SITE.url}${clean}` : `${SITE.url}/`;
 }
 
 export function personSchema() {

@@ -27,6 +27,17 @@ export default defineConfig({
     sitemap({
       serialize(item) {
         const path = new URL(item.url).pathname.replace(/\/$/, '') || '/';
+
+        // Astro's sitemap integration emits trailing slashes because build.format is
+        // 'directory'. Canonical tags (Seo.astro) and the served URLs (wrangler.jsonc
+        // html_handling: drop-trailing-slash) both omit them — so strip them here too,
+        // or search engines crawl a redirect for all 31 URLs and log "Page with redirect",
+        // which suppresses indexing. Sitemap, canonical, served URL and internal hrefs
+        // must all agree on one spelling.
+        // Strip the trailing slash on every non-root URL. The root keeps its slash because
+        // the WHATWG URL API forces it, and canonical() in lib/seo.ts matches that.
+        if (path !== '/') item.url = new URL(item.url).origin + path;
+
         if (path === '/') item.priority = 1.0;
         // Solutions are the commercial landing pages; tools and case studies are the
         // assets most likely to be linked and cited.
