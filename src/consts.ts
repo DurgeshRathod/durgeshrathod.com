@@ -69,17 +69,27 @@ export const NOW = {
 } as const;
 
 /**
- * Analytics. The GA4 measurement ID is public by design — it appears in page source on
- * every site that uses it, so committing it is not a leak.
+ * Analytics — Umami, chosen over GA4 deliberately.
  *
- * Set `ga4` to '' to remove analytics entirely, including the third-party script and the
- * cookie notice in the footer. Nothing else needs changing.
+ * Umami is cookieless and stores no personal data, which means no consent banner is
+ * required under ePrivacy/GDPR. That matters twice over here: a banner is friction on the
+ * first screen of a site whose job is convincing a sceptical stranger, and this site
+ * publishes EU AI Act guidance — dropping non-consented cookies on EU readers while doing
+ * so would be a visible inconsistency.
+ *
+ * The trade: no user-level funnel analysis. Custom events still work, so the question that
+ * matters — which page produced a WhatsApp click — is still answerable, and it is answerable
+ * for 100% of visitors rather than the ~50% who would accept a banner.
+ *
+ * The website ID is public by design; it appears in page source on every site using Umami.
+ * Set it to '' to remove analytics entirely, including the footer notice.
  */
 export const ANALYTICS = {
-  ga4: 'G-3G7Z109J0T',
+  umamiSrc: 'https://cloud.umami.is/script.js',
+  umamiWebsiteId: 'a94baf7a-3908-4dec-a85b-812b1a40563c',
 } as const;
 
-export const HAS_ANALYTICS = ANALYTICS.ga4.length > 0;
+export const HAS_ANALYTICS = ANALYTICS.umamiWebsiteId.length > 0;
 
 export const PROFILES = {
   linkedin: 'https://www.linkedin.com/in/durgesh-rathod-711a959b/',

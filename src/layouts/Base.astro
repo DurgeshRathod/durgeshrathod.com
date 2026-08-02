@@ -57,29 +57,16 @@ const { prose = false, ...seo } = Astro.props;
 
     {
       /*
-        Google Analytics 4. Deliberately the only third-party script on the site, and the
-        only thing that sets a cookie — which is why the footer notice is conditional on it.
+        Umami — the only third-party script on the site, and it sets no cookies.
 
-        preconnect first so the DNS and TLS handshake overlap with HTML parsing rather than
-        blocking on it. `async` and `is:inline` keep the snippet verbatim: Astro would
-        otherwise try to bundle it, and a bundled gtag loader does not work.
+        `defer` so it never competes with rendering, and `is:inline` so Astro leaves the tag
+        verbatim rather than trying to bundle a remote loader. preconnect lets the TLS
+        handshake overlap HTML parsing.
       */
       HAS_ANALYTICS && (
         <>
-          <link rel="preconnect" href="https://www.googletagmanager.com" crossorigin />
-          <script
-            async
-            src={`https://www.googletagmanager.com/gtag/js?id=${ANALYTICS.ga4}`}
-            is:inline
-          />
-          <script is:inline define:vars={{ gaId: ANALYTICS.ga4 }}>
-            window.dataLayer = window.dataLayer || [];
-            function gtag() {
-              dataLayer.push(arguments);
-            }
-            gtag('js', new Date());
-            gtag('config', gaId);
-          </script>
+          <link rel="preconnect" href="https://cloud.umami.is" crossorigin />
+          <script defer src={ANALYTICS.umamiSrc} data-website-id={ANALYTICS.umamiWebsiteId} is:inline />
         </>
       )
     }
@@ -105,14 +92,19 @@ const { prose = false, ...seo } = Astro.props;
 
     {
       /*
-        Sends a GA4 event for every element carrying data-analytics. Every CTA on the site
-        is tagged with its placement (hero-whatsapp, scorecard-whatsapp, calculator-whatsapp,
-        …), so this turns "someone clicked WhatsApp" into "someone clicked WhatsApp from the
-        cost calculator" — which is the difference between knowing you got a lead and knowing
-        which page produced it.
+        Sends a Umami event for every element carrying data-analytics. Every CTA is tagged
+        with its placement (hero-whatsapp, scorecard-whatsapp, calculator-whatsapp, …), so
+        this turns "someone clicked WhatsApp" into "someone clicked WhatsApp from the cost
+        calculator" — the difference between knowing you got a lead and knowing which page
+        produced it.
 
-        Uses capture-phase listening on document so it survives dynamically inserted nodes,
-        and does nothing at all when analytics is disabled.
+        Kept as a listener over data-analytics rather than switching to Umami's own
+        data-umami-event attributes: one attribute stays the single source of truth across
+        18 CTAs, and swapping analytics provider again stays a change to this block alone.
+
+        Capture-phase on document so it also covers nodes inserted later (the ⌘K palette
+        builds its results at runtime). Umami loads deferred, so the guard matters — early
+        clicks are dropped rather than throwing.
       */
       HAS_ANALYTICS && (
         <script is:inline>
@@ -122,16 +114,15 @@ const { prose = false, ...seo } = Astro.props;
               'click',
               function (ev) {
                 var el = ev.target && ev.target.closest ? ev.target.closest('[data-analytics]') : null;
-                if (!el || typeof window.gtag !== 'function') return;
+                if (!el) return;
+                if (!window.umami || typeof window.umami.track !== 'function') return;
                 var name = el.getAttribute('data-analytics') || 'unknown';
-                // Split "scorecard-whatsapp" into channel + placement for cleaner reporting.
+                // "scorecard-whatsapp" → placement "scorecard", channel "whatsapp"
                 var parts = name.split('-');
-                var channel = parts[parts.length - 1];
-                window.gtag('event', 'cta_click', {
-                  cta: name,
-                  channel: channel,
+                window.umami.track(name, {
+                  channel: parts[parts.length - 1],
                   placement: parts.slice(0, -1).join('-') || 'site',
-                  page_path: location.pathname,
+                  path: location.pathname,
                 });
               },
               true
