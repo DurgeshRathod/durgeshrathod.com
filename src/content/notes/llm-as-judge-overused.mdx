@@ -1,0 +1,90 @@
+---
+title: 'LLM-as-judge is overused'
+description: 'It is slow, it costs money on every CI run, and it is non-deterministic — which means your test suite has flaky tests by construction. About 70% of the checks teams reach for a judge to make can be written as assertions instead.'
+published: '2026-08-02'
+readingMinutes: 7
+keywords:
+  - LLM as judge
+  - LLM evaluation methods
+  - AI eval assertions
+  - LLM testing CI
+faq:
+  - q: 'When should you use LLM-as-judge?'
+    a: 'Only for properties that are genuinely subjective — tone, helpfulness, faithfulness to a source document. Anything that can be expressed as an assertion should be: schema validity, tool name, argument correctness, citation presence, PII absence, refusal behaviour, numeric accuracy.\n\nIn practice around 70% of useful checks are deterministic, which means most eval suites use a judge far more than they need to.'
+  - q: 'Why is LLM-as-judge a problem in CI?'
+    a: 'Three reasons. It costs real money on every run, so teams reduce how often they run evals. It is slow, so feedback loops lengthen. And it is non-deterministic, which means the same code can pass and fail on consecutive runs — your test suite has flaky tests by construction.\n\nA flaky suite gets ignored, and an ignored suite is worse than none because it provides false confidence.'
+  - q: 'How do you make LLM-as-judge more reliable when you do need it?'
+    a: 'Pin the judge model version explicitly, use a cheap model rather than a frontier one, give it a rubric with discrete levels instead of a 1-10 score, run each case several times and take a majority, and calibrate against human labels on a sample.\n\nAlso record the judge version on every result, so a shift in scores can be attributed to the judge changing rather than your agent regressing.'
+---
+
+LLM-as-judge has become the default answer to "how do we evaluate this," and it should be the last resort rather than the first.
+
+Three properties make it a poor fit for the place teams put it — in CI, on every case, as the primary signal.
+
+**It costs money on every run.** Every commit triggers a judge call per case. A 100-case suite on a frontier judge is a real line item, and the predictable consequence is that teams run evals less often. An eval suite you run weekly instead of per-commit has lost most of its value; the point was catching the regression before it merged.
+
+**It is slow.** Sequential model calls turn a suite that could run in seconds into minutes. Feedback loops lengthen, and long feedback loops get routed around.
+
+**It is non-deterministic.** This is the serious one. Your test suite now has flaky tests *by construction* — the same code passes and fails on consecutive runs. Engineers learn to re-run until it goes green, which is exactly the habit that makes a suite worthless. A flaky suite is worse than no suite, because it provides false confidence.
+
+## Most of what you want to check is deterministic
+
+Here is the split I use, and roughly 70% of useful checks land in the free rows:
+
+| Method | Use for | Cost per run |
+| --- | --- | --- |
+| Schema assertion | Structured output, tool name, tool arguments, refusal flags | Free, instant, deterministic |
+| Deterministic check in code | Numbers, dates, IDs, citation present, PII absent | Free, instant |
+| Retrieval recall@k | Whether the right document was fetched | Free once labelled |
+| LLM-as-judge | Tone, helpfulness, faithfulness to source | Real money, every run |
+| Human review | Calibrating the judge, sampling each release | Expensive; fix the sample size |
+
+The rule that follows: **if a check can be written as an assertion, it must be.** Reach for a judge only when the property is genuinely subjective.
+
+Worked examples of things teams routinely use a judge for and should not:
+
+- *"Did it call the right tool?"* — assert the tool name.
+- *"Did it get the number right?"* — extract the number as a structured field and compare.
+- *"Did it cite a source?"* — check that a citation exists and resolves.
+- *"Did it refuse?"* — return a refusal flag in structured output and assert on it.
+- *"Did it leak PII?"* — run a detector, not a model asked to introspect.
+- *"Was the SQL correct?"* — execute it and compare **result sets**, not query text. Many different queries produce the same correct answer, and grading SQL strings punishes correct work.
+
+That last one is worth dwelling on. Matching on output *text* is what pushes teams toward a judge in the first place. Matching on the *decision* or the *result* usually converts a subjective comparison into a deterministic one.
+
+## Constrain the output and the problem shrinks
+
+The deeper reason judges get overused is that agents are asked to return prose, and prose can only be compared subjectively.
+
+Return structured output instead and most checks become assertions. Not `"The customer's account is overdue by $340 and was last paid in March"` but:
+
+```json
+{ "status": "overdue", "amount": 340, "last_payment": "2026-03-14" }
+```
+
+Now correctness is three assertions. Render the sentence for the human separately.
+
+This also removes a whole class of [non-determinism](/tools/failure-taxonomy#same-input-different-output): prose invites rephrasing, and rephrasing is where substantive drift hides. A constrained schema leaves no room for the decision to change while the wording changes.
+
+## When you do need a judge
+
+Some properties are genuinely subjective. Is this reply appropriately empathetic? Is this summary faithful to the source? Is the tone right for our brand? No assertion captures those.
+
+When you use one:
+
+- **Pin the judge model version and log it.** A floating alias means score shifts you will misattribute to your own agent regressing.
+- **Use a cheap model.** Judging is easier than generating. A frontier judge usually pays for capability the task does not need.
+- **Give it a rubric with discrete levels**, not a 1–10 score. "Does this cite the source: yes / partially / no" is far more stable than a number, and stability is the whole problem.
+- **Run each case several times and take a majority.** Costs more; converts a flaky signal into a usable one.
+- **Calibrate against human labels on a sample.** An uncalibrated judge measures something, and you do not know what.
+- **Keep judged cases in a separate suite** from the deterministic ones, with its own threshold. Then a judge wobble does not block a merge that broke nothing.
+
+That last point is the practical fix if you already have a judge-heavy suite: split it. Deterministic checks gate the merge. Judged checks report a trend. You get fast reliable CI and keep the subjective signal, without the subjective signal blocking work.
+
+## The uncomfortable summary
+
+Reaching for a judge often means the agent's output is not structured enough to check. The judge is treating a symptom.
+
+The higher-leverage fix is usually upstream: constrain the output, then assert on it. That is cheaper, faster, deterministic, and it eliminates a category of failure rather than measuring it.
+
+The full method — which thirty cases to start with, and how to pick a scoring method per case — is on the [eval suites page](/solutions/agent-eval-suites).

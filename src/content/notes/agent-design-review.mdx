@@ -1,0 +1,92 @@
+---
+title: 'What to look for in an agent design review'
+description: 'Reviewing an agent feature before it ships is the cheapest reliability work available, and most teams review the prompt rather than the architecture. Nine questions that catch the expensive problems while they are still free.'
+published: '2026-08-02'
+readingMinutes: 7
+keywords:
+  - agent design review
+  - AI code review checklist
+  - LLM architecture review
+  - agent feature review
+faq:
+  - q: 'What should an agent design review cover?'
+    a: 'Where the trust boundary sits, what bounds the run, what the failure and refusal behaviour is, what gets traced, and how you will know it works. Not the prompt — the prompt is the most changeable part of the system and the least consequential to review.\n\nThe most useful single question is "what happens when this tool returns something unexpected", because the answer reveals whether validation exists anywhere.'
+  - q: 'Who should be in an agent design review?'
+    a: 'The engineer building it, someone who did not build it, and ideally someone who will be on call for it. The last one changes the conversation — people design differently when they will be paged.\n\nIt does not need an AI specialist. Most of the questions are ordinary systems questions about boundaries, bounds and observability.'
+  - q: 'When is the right time to review an agent feature?'
+    a: 'After the approach is decided and before the implementation is finished — early enough that the boundary can move, late enough that there is something concrete to discuss.\n\nReviewing after it works is nearly useless, because by then the trust boundary is wherever it ended up and moving it is a rewrite.'
+---
+
+Reviewing an agent feature before it ships is the cheapest reliability work available. It is also usually done wrong: the review looks at the prompt, which is the most changeable part of the system and the least consequential.
+
+The expensive decisions are structural — where the trust boundary sits, what bounds the run, what happens when a tool misbehaves. Those are nearly free to change during design and a rewrite afterwards.
+
+Nine questions. Ask them out loud, and pay attention to hesitation — hesitation marks the parts nobody owns.
+
+## 1. Where does model output cross into something real?
+
+Trace one path from response to side effect and count the validation steps. If the answer is zero, that is the finding and nothing else in the review matters as much.
+
+Look specifically for identifiers. A tool accepting a `customer_id` from model output is trusting a probabilistic system with an authorisation decision. Re-derive identity from the authenticated session and ignore what the agent supplied.
+
+## 2. What bounds this run?
+
+Two numbers, both required: a maximum step count and a token budget. A wall-clock timeout as well, because a ceiling bounds cost and a timeout bounds user-visible latency and they fail in different situations.
+
+"We haven't hit that yet" is not an answer. An agent loop is a while-loop with a language model as the exit condition — without a bound, a model that never reports satisfaction never exits.
+
+## 3. What happens when a tool returns something unexpected?
+
+The single most diagnostic question, because the answer usually reveals whether validation exists anywhere in the system.
+
+Then push further: what does the tool return *on failure*? `Error 500` gives the model nothing to change, so it retries the identical call. `Customer 4471 not found — search by email instead` gives it a different action. A large share of [runaway loops](/tools/failure-taxonomy#agent-loops-forever) are caused by unactionable error messages, which is a tool design problem and free to fix at this stage.
+
+## 4. What is it supposed to refuse?
+
+Almost never answered in a design doc, and it is half the requirement. Out of scope, not authorised, insufficient information, adversarial input.
+
+Ask for the refusal list explicitly, and confirm it will be tested. What an agent declines is as much a specification as what it does.
+
+## 5. Is the output structured or prose?
+
+Anything another system consumes should be a schema, not a sentence someone parses. Prose invites rephrasing, and rephrasing is where substantive drift hides — the decision changes while the wording changes, and nothing notices.
+
+This one decision removes a large class of [non-determinism](/tools/failure-taxonomy#same-input-different-output) and makes most of the eval suite deterministic rather than needing a judge.
+
+## 6. What gets written to the trace?
+
+Not "we log the prompt and response." Ask for the fields: trace ID, step index, prompt version, model version, tokens in and out, cache reads, tool name and arguments, whether validation passed, stop reason, retry count, latency, outcome.
+
+The [minimum viable trace](/solutions/llm-observability) is fifteen fields and teams are usually missing the four that make cost and correctness debuggable. Adding them during design is trivial; retrofitting them means touching every call site.
+
+## 7. Is the stop reason checked?
+
+Small, specific, and catches a genuinely nasty failure. Every provider reports why generation ended. Code that ignores that field cannot distinguish a finished answer from one severed at a token limit — and a truncated list or half-written record propagates as if it were valid.
+
+Search the codebase for the stop-reason field during the review. If it is never read, the bug exists already.
+
+## 8. How will you know it works — and that it still works next month?
+
+Ask what would tell them a change broke something. If the answer is "we'd test it manually" or "a customer would tell us," the feature is not reviewable yet.
+
+You are not asking for a full suite at design time. You are asking whether anyone has thought about how correctness will be measured, because the answer determines whether every later improvement is engineering or guessing.
+
+## 9. What does one run cost, roughly?
+
+An order of magnitude is fine. The point is whether anyone has multiplied tokens per call by calls per run by runs per month.
+
+Tool definitions are billed on every call. Conversation history resent each turn makes per-turn cost grow with turn count. Both are architectural choices being made in this review, and both are much cheaper to get right now than to discover on an invoice.
+
+## Who should be there
+
+The engineer building it, someone who did not build it, and if possible whoever will be on call. That last person changes the conversation — people design differently when they know they will be paged.
+
+It does not need an AI specialist. Seven of these nine are ordinary systems questions about boundaries, bounds and observability. That is the point of the whole exercise: **most agent reliability is not an AI problem, so most of the review does not need AI expertise.**
+
+## Timing
+
+After the approach is decided, before the implementation is finished. Early enough that the trust boundary can still move; late enough that there is something concrete to argue about.
+
+Reviewing after it works is nearly useless. By then the boundary is wherever it happened to end up, and moving it is a rewrite that competes with the next feature — which it will lose.
+
+If you want the version aimed at whoever approves the work rather than writes it, the [fourteen questions to ask before launch](/for-leaders/questions-to-ask-before-launch) covers the same ground with reassuring and worrying answers for each.

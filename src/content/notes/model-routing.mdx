@@ -1,0 +1,104 @@
+---
+title: 'Model routing is the biggest cost lever, and it needs evals first'
+description: 'Routing tasks by difficulty typically recovers 40–70% of spend. It is also the only cost lever that can silently degrade quality — which is why the teams that most need it are usually the ones least equipped to do it safely.'
+published: '2026-08-02'
+readingMinutes: 8
+keywords:
+  - LLM model routing
+  - reduce LLM costs
+  - model selection by task
+  - LLM cost optimisation
+faq:
+  - q: 'How much can model routing save?'
+    a: 'Typically 40–70% of spend on an agent that has not been optimised, because classification, extraction, routing and formatting rarely need a frontier model and often make up most of the calls.\n\nThe range assumes nobody has done this work yet. If you already route, remaining wins are smaller and come from history bounds and tool-definition trimming instead.'
+  - q: 'Will a cheaper model hurt quality?'
+    a: 'For classification, extraction, routing and formatting, usually not measurably. For genuinely hard reasoning, yes.\n\nThe important part is that this is a measurable question rather than a matter of opinion. Route the task, run your evals on that tier, and read the number. Teams without evals either overpay everywhere out of caution or degrade quality without noticing.'
+  - q: 'How do I decide which tasks to route to a cheaper model?'
+    a: 'Classify by the capability the task actually requires, not by how important the feature feels. Structured extraction from clean input, intent classification, routing decisions, reformatting and summarising short text are all cheap-tier work.\n\nMulti-step reasoning, ambiguous instructions, long-context synthesis and anything where being wrong is expensive stay on the stronger model.'
+---
+
+Across the cost work I have done, routing by task difficulty is consistently the largest single recovery — commonly 40–70% of spend on an agent nobody has optimised yet.
+
+It is also the only lever on the list that can quietly make your product worse. Caching, trimming tool definitions and bounding history are all quality-neutral. Routing trades capability for cost, and without measurement you will not know which way the trade went.
+
+That produces an awkward pattern: the teams with the most to save are usually the ones without the eval suite that would make saving it safe.
+
+## Why the saving is so large
+
+Most agents call one model for everything. But the calls inside a single run are not similar work.
+
+A support agent handling one conversation might make ten model calls: classify the intent, extract an order ID, decide which tool to use, summarise a retrieved article, format a date, check whether the question is in scope, generate the reply, and so on.
+
+**One of those needs a frontier model.** The rest are pattern-matching on clean input. Paying frontier rates for all ten is where the money goes.
+
+The distribution matters more than the price difference. Even a modest per-token gap compounds when 80% of your calls are trivial work.
+
+## Deciding what goes where
+
+Classify by the capability the task requires, not by how important the feature feels. Important features contain trivial sub-tasks.
+
+**Cheap tier is appropriate for:**
+- Intent classification and routing decisions
+- Structured extraction from reasonably clean input
+- Reformatting, normalising, date and unit handling
+- Summarising short text
+- Binary or enumerated judgements with clear criteria
+- Anything where the output is a schema with few fields
+
+**Keep on the stronger model:**
+- Multi-step reasoning where errors compound
+- Ambiguous or underspecified instructions
+- Long-context synthesis across many documents
+- Anything customer-visible where being wrong is expensive
+- Tool selection when there are many similar tools
+
+The middle is genuinely uncertain, and that is what evals are for. Do not argue about it — route it, measure it, read the number.
+
+## The eval requirement is not optional
+
+Here is the part teams skip and then regret.
+
+**You need per-tier evals, not one aggregate score.** A suite reporting "94% pass" tells you nothing about whether the classification tier degraded, because classification is a small fraction of your cases and its regression is buried in the average.
+
+Score by category. Then routing a task to a cheaper model produces a clear answer: did *that category* hold?
+
+The minimum before you route anything:
+
+1. Eval cases covering each task type you intend to route
+2. Category-level reporting, not one number
+3. A recorded baseline on the current model
+4. One change at a time, with an eval run between
+
+That last point is where teams lose the plot. Routing four task types at once and observing a quality drop tells you nothing about which route caused it. One at a time is slower and it is the only version that produces knowledge.
+
+## What routing costs you in complexity
+
+Worth being honest that this is not free.
+
+**Another failure mode.** Rate limits or errors on the cheap model can fall through to the expensive one. Behaviour looks correct; unit cost changes by an order of magnitude. Group spend by model ID and alert on traffic to models you did not intend to use — I have seen this run for a month undetected.
+
+**Two prompts to maintain per routed task.** A prompt tuned for a frontier model often underperforms on a smaller one. Cheaper models generally want more explicit instructions and more structure. Budget for that rather than assuming portability.
+
+**Version pinning becomes more important.** More models means more floating aliases that can shift underneath you. Pin every one and log the exact version served.
+
+**A routing decision that can itself be wrong.** If you classify difficulty with a model call, that call can misclassify. Prefer deterministic routing on task type where possible — you usually know which sub-task you are invoking, because your own code invoked it.
+
+That last point is the one I would emphasise. Most routing does not need a router model. Your code already knows it is about to extract an order ID rather than reason about a policy exception. Route on that, and skip the whole class of problems that comes with a probabilistic dispatcher.
+
+## Sequencing against the other levers
+
+From the [ranked lever list](/solutions/llm-cost-reduction), routing goes first — not only because it is largest, but because the infrastructure it requires makes everything after it safer.
+
+1. **Attribute the spend** first. A day of work. You cannot route what you cannot measure, and it usually surfaces a surprise.
+2. **Establish the quality baseline.** Evals, or a subset.
+3. **Route**, one task type at a time.
+4. **Then cache, bound history, trim tool definitions.** Quality-neutral, so they need less ceremony.
+5. **Install ceilings.** Not a saving — insurance against a five-figure weekend.
+
+If you have no evals and cannot build them yet, there is still a safe partial move: route only the tasks whose output is a strict schema you already validate. If the schema check passes, the cheap model did the job. That is a genuine assertion rather than a hope, and it lets you start on the easiest 20% while the suite gets built.
+
+## The honest summary
+
+Routing is the biggest lever and the one most likely to be done badly. Done with per-tier evals it is close to free money. Done blind it is a quality regression you will discover from a customer, months later, with no way to attribute it.
+
+Model the numbers for your own workload in the [cost calculator](/tools/agent-cost-calculator) — the model comparison table shows the same workload across every model, which is usually what ends the internal debate about whether this is worth the engineering effort.

@@ -1,0 +1,89 @@
+---
+title: 'Event-driven agents: what Kafka taught me about agent architecture'
+description: 'A 20% input spike once turned a healthy pipeline into an outage because it had no backpressure — it had optimism. Every concept that prevents that has a direct agent equivalent, and almost no agent codebase implements any of them.'
+published: '2026-08-02'
+readingMinutes: 9
+keywords:
+  - event-driven agents
+  - Kafka LLM architecture
+  - async agent design
+  - agent backpressure
+  - LLM streaming data
+faq:
+  - q: 'Should AI agents be event-driven or synchronous?'
+    a: 'Synchronous for interactive work where a person is waiting, event-driven for everything else — and most agent work that is not a chat interface falls into the second category.\n\nThe practical argument is not elegance. An event-driven design gives you a queue you can bound, retries you can make idempotent, a lag metric you can alert on, and the ability to replay one entity in isolation. A synchronous agent has none of those and fails by timing out.'
+  - q: 'Can you run an LLM on streaming data in real time?'
+    a: 'Not per record at high volume. At 520 million records per 15-minute cycle the budget is roughly 1.7 microseconds per record against about a second for a model call — six orders of magnitude, which batching does not close.\n\nWhat works is statistical detection in the hot path with the model operating on the detected events, off the critical path.'
+  - q: 'What does backpressure mean for an AI agent?'
+    a: 'Refusing or shedding work you cannot afford to complete, rather than accepting it and failing. Concretely: a hard step ceiling per run, a token budget per run, a bounded queue of pending runs, and degradation to a cheaper model or a queue rather than unbounded spend.\n\nAn agent run with no step ceiling is an unbounded queue, and an unbounded queue is a delayed crash.'
+---
+
+The most useful thing I know about agent architecture I learned from a telecom data pipeline that fell over.
+
+The platform processed [200 million configuration and 320 million performance parameters every 15 minutes](/work/telecom-throughput) on Golang, Kafka, Kubernetes and PostgreSQL. Steady state was comfortable. Then a network region delivered a delayed batch and we received roughly two cycles of data inside one cycle window.
+
+Throughput did not degrade gracefully. It collapsed. Workers accepted everything handed to them, memory pressure rose, Kubernetes started evicting pods, evicted work was redelivered, and redelivery added load to an already overloaded system. **A 20% input spike produced an outage** — the signature of a system with no backpressure. It had optimism instead.
+
+Every concept that prevents that has a direct agent equivalent. Almost no agent codebase I have audited implements any of them.
+
+## The translation
+
+| Pipeline concept | Agent equivalent | What happens without it |
+| --- | --- | --- |
+| Bounded queue | Step ceiling per run | Agent loops until a timeout or an invoice stops it |
+| Backpressure / load shedding | Token budget per run, degradation path | Accepts work it cannot afford to finish |
+| Idempotent redelivery | Retries safe to repeat | A retried tool call charges the card twice |
+| Consumer lag | Depth of pending runs | No idea you are falling behind until users complain |
+| Replay one partition | Replay one run from its trace | Every investigation starts from zero |
+| Alert on trend | Cost per conversation trending up | Budget alert fires after the money is gone |
+| Headroom | Deliberate capacity margin | A spike is amplified rather than absorbed |
+
+The left column is table stakes for anyone who has run a pipeline. The right column is missing from most agent systems built in the last two years.
+
+That asymmetry is the opportunity. A platform team adopting agents starts *ahead*, provided nobody tells them their operational discipline is irrelevant because "AI is different."
+
+It is not different. It is the same problem with a probabilistic component in the middle.
+
+## Where the model belongs
+
+The arithmetic settles this better than argument. At 520 million records per 15-minute cycle you have roughly **1.7 microseconds of budget per record**. A model call takes on the order of a second. That is six orders of magnitude, and no amount of batching or caching closes it.
+
+So per-record inference in the hot path is not expensive, it is arithmetically impossible. The useful question is which surfaces tolerate a one-second, occasionally-wrong, per-call-billed operation:
+
+- **Never:** per-record inference in the ingestion path
+- **Yes, async:** anomaly *explanation* on already-detected events — detection stays statistical and fast
+- **Yes:** alert triage, dedup and enrichment — operating on alerts, not raw records, drops volume by orders of magnitude
+- **Yes, offline and reviewed:** configuration generation. The highest-value use I have found — generate the pipeline config, have an engineer approve it, let the deterministic framework execute
+- **Yes, human-gated:** runbook automation, with a dry-run on anything destructive
+
+The pattern across every yes: **the model operates on aggregates or events, off the critical path, and its output is either reviewed by a human or validated by deterministic code before it does anything.**
+
+## Why async changes the failure mode
+
+A synchronous agent has exactly one failure mode available to it: time out and return an error. Everything else — retries, partial progress, backpressure — has to be improvised inside the request.
+
+Make the run an event and you get the primitives for free:
+
+**A queue you can bound.** Pending runs become a number you can see, alert on, and cap. Full queue means shed or reject, which is a *behaviour* rather than a crash.
+
+**Retries that are someone else's problem.** Your infrastructure already knows how to retry with backoff. Bring your own idempotency and stop writing retry loops.
+
+**Replay.** Reprocessing one entity in isolation is the routine operational need in a pipeline. Its agent equivalent — replay this run from its trace — is the single most useful debugging capability you can have, and almost nobody builds it because synchronous designs make it awkward.
+
+**Progress you can observe.** A long synchronous run is a black box until it returns. An event-driven one emits state you can watch, which is also what lets you show a user step-level progress instead of a spinner.
+
+## The cost of getting it wrong
+
+The failure mode that made the telecom outage expensive was not the spike. It was that **retries amplified it.** Evicted work was redelivered, redelivery added load, load caused more eviction.
+
+Agent systems have the identical loop and it is usually cheaper to trigger. A tool returns an opaque `500`. The model, given nothing actionable, retries the identical call. Every retry is billed and adds latency, which pushes other runs toward their timeouts, which produces more retries. I have seen [nineteen billed model calls](/work/multi-agent-orchestration) spent concluding that one company was a bad fit.
+
+The fixes are the same ones the pipeline needed: bound the retries, make errors actionable so a retry does something different, and detect repetition — hash each tool call with its arguments and stop when the same hash recurs within a run.
+
+## If you already run pipelines
+
+Your instincts transfer almost completely, and that is a bigger advantage than it sounds. Bounded queues, backpressure, load shedding, idempotency, alerting on trends, maintaining headroom — every one has a direct agent equivalent, and agent codebases routinely lack all of them.
+
+The gap is usually not AI knowledge. It is that nobody told you the discipline you already have is the missing piece.
+
+I have written the domain-specific version of this up for [telecom and data platform teams](/industries/telecom-and-data-platforms), including where an LLM genuinely earns its place in a high-throughput system and where it is a category error.

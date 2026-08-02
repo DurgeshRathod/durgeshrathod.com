@@ -1,0 +1,68 @@
+---
+title: 'Prompt versioning: your prompts are deployable artefacts'
+description: 'If a customer reports a bad answer from last Tuesday, can you reconstruct the exact prompt that produced it? Most teams cannot, and it makes every subsequent investigation archaeology.'
+published: '2026-08-02'
+readingMinutes: 7
+keywords:
+  - prompt versioning
+  - LLM prompt management
+  - prompt rollback
+  - LLM reproducibility
+faq:
+  - q: 'How should prompts be versioned?'
+    a: 'As artefacts in git, with a content hash or version identifier stamped onto every trace, and rollback that does not require a deploy. The test is whether you can take a response from three weeks ago and reconstruct the exact prompt text that produced it.\n\nEditing prompts in a vendor dashboard fails that test, which is why dashboard-managed prompts are one of the more expensive conveniences available.'
+  - q: 'Should prompts live in a database or in code?'
+    a: 'In git for the source of truth, optionally cached in a database or config service for runtime loading. What matters is that every version is immutable, addressable, and recorded per request.\n\nA prompt that can be edited in place with no history is the problem, regardless of where it is stored.'
+  - q: 'Why does prompt versioning matter if we have evals?'
+    a: 'Evals tell you that quality dropped. Versioning tells you which change caused it. You need both — and versioning is the cheaper of the two, usually one to two days of work.\n\nWithout it, a regression detected by evals still requires guessing at the cause, and a customer complaint from last month cannot be investigated at all.'
+---
+
+Here is the question I ask on almost every engagement, and the answer is diagnostic well beyond prompts:
+
+> A customer says the agent gave them a bad answer last Tuesday. Can you reconstruct the exact prompt that produced it?
+
+Most teams cannot. Sometimes prompts live in a vendor dashboard where someone edited them in place. Sometimes they are in git but nothing links a response back to a commit. Occasionally they are string-concatenated inline across four files.
+
+The consequence is not abstract. It means **you cannot reproduce a reported failure, which means you cannot confirm a fix.** Every investigation becomes archaeology, and some questions are simply unanswerable.
+
+## What versioned actually means
+
+Four properties. Storage location matters much less than people expect.
+
+**Immutable.** A version, once used in production, is never edited. Changes create a new version. Editing in place destroys the only record of what was actually running.
+
+**Addressable.** Each version has an identifier — a content hash works well and requires no coordination. `prompt:support-triage@a3f8c1` is enough.
+
+**Recorded per request.** The identifier is stamped onto every trace alongside the model version. This is the property that turns the other three from bookkeeping into a debugging capability, and it is the one most often missing.
+
+**Rollback-able without a deploy.** When a prompt change causes a problem at 6pm, reverting should not require a full release cycle. If it does, the practical response becomes "leave it until tomorrow," which means running a known-bad prompt overnight.
+
+## Where it usually goes wrong
+
+**Dashboard-managed prompts.** Vendor prompt-management UIs are genuinely convenient — a non-engineer can adjust wording without a deploy. That convenience is also the failure: prompts change with no review, no history, and no link to the traces they produced. If you use one, treat it as a cache of something in git, not the source of truth.
+
+**Git without linkage.** Better, and still insufficient. Prompts are in version control, but a response from three weeks ago cannot be matched to the commit that produced it. You know all the versions that existed; you do not know which one ran.
+
+**Versioning the prompt but not the model.** A pinned prompt and a floating model alias is only half a system. The alias changes underneath you and behaviour shifts with no deploy on your side. Pin the model version explicitly and log the exact version served — I have seen spend jump by an order of magnitude from a silent fallback nobody detected for a month.
+
+**Forgetting the assembled context.** In a RAG system the prompt template is one input among several. Reproducing a failure needs the template version *and* the retrieved document IDs. Without both you can reconstruct the question but not what the model was reading when it answered.
+
+## What this costs
+
+One to two days for most codebases. That is the entire investment, and it is on the [readiness scorecard](/scorecard) as a high-risk gap for that reason — a cheap fix guarding an expensive failure.
+
+The implementation is unremarkable: extract prompts into files, hash them at load, add the hash to your trace fields alongside `model_id`, and make the loader capable of pinning to a specific version via config. Half of it is deleting string concatenation.
+
+## The second-order benefit
+
+Versioning is usually justified by debugging, but the larger payoff is that **it makes prompt changes reviewable.**
+
+Once a prompt is a file in a pull request, it gets read by another person before it ships. Someone notices that the new wording dropped the refusal instruction. Someone asks whether the eval suite passed. The prompt joins the change-control process that every other part of your system already has.
+
+That review is worth more than the debugging capability. Prompts edited in a dashboard by whoever had the tab open are the most consequential unreviewed code in most AI products.
+
+## How it fits with the rest
+
+Versioning tells you *which change* caused a regression. An [eval suite](/solutions/agent-eval-suites) tells you *that* quality dropped. [Tracing](/solutions/llm-observability) tells you *what happened* on a specific run.
+
+You need all three, and versioning is the cheapest. It is also the one that makes the other two more useful — an eval failure you can attribute to a specific prompt version is actionable, and one you cannot is just bad news.

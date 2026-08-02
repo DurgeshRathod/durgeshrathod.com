@@ -1,0 +1,77 @@
+---
+title: 'Prompt caching and semantic caching are not the same thing'
+description: 'They get discussed interchangeably and they solve different problems with different risks. One is a billing mechanism with a write premium that can lose you money; the other returns a previous answer to a different question and can leak across tenants.'
+published: '2026-08-02'
+readingMinutes: 8
+keywords:
+  - prompt caching
+  - semantic caching LLM
+  - LLM cache hit rate
+  - LLM cost caching
+faq:
+  - q: 'What is the difference between prompt caching and semantic caching?'
+    a: 'Prompt caching is a provider billing mechanism: a stable prefix of your request is stored so subsequent calls re-read it at roughly a tenth of the input price. The model still runs and still generates a fresh response.\n\nSemantic caching is something you build: an incoming question is compared by embedding similarity to previous questions, and if one is close enough you return the previous answer without calling the model at all. That is a correctness and privacy decision, not a billing one.'
+  - q: 'Does prompt caching always save money?'
+    a: 'No. A cache write costs more than ordinary input — 1.25x base price for a 5-minute cache and 2x for an hour — while a read costs about 0.1x. It only pays once content is genuinely re-read: after one read for the short tier, two for the long one.\n\nCaching a prefix that is never reused makes it more expensive. Check your actual hit rate before assuming the cache is helping.'
+  - q: 'Is semantic caching safe in a multi-tenant product?'
+    a: 'Only with per-tenant cache keys, and it is one of the most commonly missed leak paths because caching gets reviewed as a performance feature rather than a data boundary.\n\nA shared semantic cache can return one tenant question answer to another tenant. Partition the keyspace explicitly, and never cache anything derived from tenant-specific retrieved content in a shared namespace.'
+---
+
+These two get discussed as if they were the same optimisation. They are not related, they solve different problems, and they fail in completely different ways.
+
+Being imprecise about which one you mean is how teams end up with a cache that costs money or leaks data.
+
+## Prompt caching is a billing mechanism
+
+Your provider stores a stable prefix of the request — system prompt, tool definitions, a long document — so subsequent calls re-read it instead of reprocessing it. **The model still runs. You still get a fresh response.** Only the input pricing changes.
+
+The economics have a trap in them. Using Anthropic's published multipliers:
+
+| Operation | Multiplier vs base input |
+| --- | --- |
+| 5-minute cache write | 1.25× |
+| 1-hour cache write | 2× |
+| Cache read | 0.1× |
+
+A write costs *more* than not caching. So caching only pays once content is genuinely re-read — after one read for the 5-minute tier, two for the 1-hour tier.
+
+Which means **caching a prefix that is never reused makes it more expensive**, and caching on the 1-hour tier with sparse traffic means paying a 2× write premium repeatedly and saving nothing. I have seen a cache with a low hit rate presented as a cost optimisation while it was a net loss.
+
+The check is one query: what is your actual hit rate? If you cannot answer, you do not know whether your cache is working. That is why `cache_read_tokens` is a required field in the [trace spec I implement](/solutions/llm-observability) — without it, cache effectiveness is invisible.
+
+What to cache: system prompts and tool definitions. Stable text, re-read on every call, and [tool definitions are billed on every request anyway](/notes/tool-definition-tax) so they are the highest-value candidate.
+
+What not to cache: anything that changes per request, and anything with traffic too sparse to hit before expiry.
+
+## Semantic caching is a correctness decision
+
+Here you build something. An incoming question is embedded, compared against previous questions, and if one is similar enough you return the previous answer — **without calling the model at all.**
+
+That is a much bigger claim than prompt caching makes. You are asserting that two different questions have the same answer.
+
+Sometimes true. *"What's your refund window?"* and *"How long do I have to return something?"* probably share an answer. But similarity is not equivalence, and the gap is where it breaks:
+
+**Similar questions with different answers.** *"Can I cancel?"* and *"Can I cancel for free?"* are embedding-close and have materially different answers. This is the same failure as [semantic similarity mistaken for relevance in retrieval](/tools/failure-taxonomy#rag-returns-irrelevant-results) — same mechanism, worse consequence, because you are not just retrieving the wrong context, you are shipping a stored answer for a question nobody asked.
+
+**Time-sensitive answers.** *"What's my balance?"* cached for an hour is a wrong answer with a plausible shape.
+
+**Personalised answers.** Anything depending on who is asking must not be shared. Which leads to the serious one.
+
+**Cross-tenant leakage.** A shared semantic cache can return one customer's answer to another customer. This is among the most commonly missed leak paths in multi-tenant AI products, and the reason is structural: caching gets reviewed as a performance feature, so it never goes through the data-boundary review that retrieval does. I have written the [full isolation checklist](/solutions/multi-tenant-ai-isolation) and cache partitioning is on it precisely because it is the item teams have not thought about.
+
+## If you implement semantic caching
+
+- **Partition the keyspace by tenant, explicitly.** Not "the query includes the tenant so the embedding differs" — that is not a boundary, it is a coincidence.
+- **Set the similarity threshold high, then higher.** Most teams start too permissive. A cache that answers 60% of questions and is wrong on 5% of those is worse than no cache.
+- **Never cache anything personalised or time-sensitive.** Maintain an explicit allowlist of cacheable intents rather than a denylist of exclusions.
+- **Log every hit with both questions.** You need to be able to audit what was served for what was asked. Without that log you cannot investigate a complaint at all.
+- **Put cached answers through your eval suite.** They are answers your product gave. That they came from a cache does not exempt them from being measured.
+- **Give it a TTL short enough that stale answers expire before they matter**, and treat that number as a product decision rather than an infrastructure one.
+
+## Which one you probably want
+
+**Prompt caching: almost certainly yes.** It is a config change, the model still runs, correctness is unaffected, and the only risk is paying a write premium you do not recover. Cache the system prompt and tool definitions, then verify the hit rate.
+
+**Semantic caching: probably not yet.** It trades correctness for latency and cost, and the failure modes are subtle. It earns its place when you have high volume of genuinely repetitive questions, an eval suite to measure what it does to quality, and a tenant boundary you have deliberately partitioned.
+
+If you are considering it primarily to cut costs, work through the [ranked cost levers](/solutions/llm-cost-reduction) first. Routing by task difficulty typically recovers far more than semantic caching, with no correctness risk at all — and it is the lever most teams have not pulled.

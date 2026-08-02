@@ -1,0 +1,71 @@
+---
+title: 'MCP in production: what the protocol gives you and what it does not'
+description: 'Model Context Protocol moves your tool boundary into a place where validation and authorisation naturally live. That is the real benefit, and it is not the one usually advertised. What it does not give you: security, cheaper tokens, or a reason to trust tool arguments.'
+published: '2026-08-02'
+readingMinutes: 9
+keywords:
+  - Model Context Protocol production
+  - MCP best practices
+  - MCP security
+  - MCP tool design
+  - MCP vs function calling
+faq:
+  - q: 'What does MCP actually give you over plain function calling?'
+    a: 'A tool boundary that is a separate process with a declared schema, rather than an in-process function call. The practical consequence is that validation, authorisation and logging naturally live at that boundary — when tools are ordinary functions it is tempting to pass model output straight through, and when they are a server with a schema, validating input is the obvious thing to do.\n\nIt also makes tools reusable across agents and clients. What it does not give you is security, lower token cost, or any reason to trust the arguments a model supplies.'
+  - q: 'Is MCP secure by default?'
+    a: 'No. MCP is a transport and schema convention, not a security model. A server will happily execute whatever a client asks if you wrote it that way.\n\nYou still need strict schema validation on every input, authorisation re-derived server-side from the authenticated session rather than accepted from model output, and confirmation or dry-run paths for irreversible actions.'
+  - q: 'Does MCP reduce token usage?'
+    a: 'No, and it can increase it. Tool schemas are part of the request input and are billed on every call, whether the tool is used or not. Exposing more tools through MCP because it became easy to add them raises the floor cost of all traffic.\n\nThe fix is scoping tools per phase of the run rather than exposing everything for the whole run.'
+---
+
+I have shipped two production systems on Model Context Protocol: a project-management assistant that let people manage tasks and boards conversationally, and tool servers backing an autonomous lead-generation pipeline. Both worked. Neither worked for the reasons I expected when I started.
+
+The advertised benefit of MCP is interoperability — write a tool once, use it from any client. That is real, and for most teams it is not the thing that matters.
+
+## The actual benefit: the boundary becomes a place
+
+Here is what changed, and it is architectural rather than technical.
+
+When your tools are ordinary in-process functions, the model's output flows into them as arguments and there is no obvious place to stop and check. You *could* validate. Nothing structurally suggests it. So in practice teams pass model output straight through, and I find that in most codebases I audit.
+
+When a tool is a separate server with a declared schema, the boundary is a real thing in the architecture. There is a request being parsed. There is a schema to validate against. There is a natural place for an authorisation check and a log line. **The protocol did not make anything safer. It made the safe thing obvious.**
+
+That is a genuine architectural benefit and I would take it on its own. But it is worth being precise: MCP moved the boundary somewhere visible. It did not defend it.
+
+## What MCP does not give you
+
+**Security.** MCP is a transport and a schema convention. A server executes what it is asked to execute. If you wrote a `delete_record` tool that accepts an ID and deletes it, the protocol will faithfully deliver a hallucinated ID and your server will faithfully delete the wrong record.
+
+Three things you still have to do yourself:
+
+- **Validate every input against a strict schema, and reject rather than coerce.** A hard failure the agent can retry against is safer than a silently corrected value producing a confidently wrong result.
+- **Re-derive identity and authorisation server-side.** Never accept a tenant or user identifier from model output. Take it from the authenticated session and ignore what the agent supplied. I have watched an agent generate a perfectly valid query that would have crossed a tenant boundary because the scoping lived in a prompt — [the full story is here](/work/hr-analytics-agent), and the lesson was that we had put a security boundary inside a probabilistic system.
+- **Gate irreversible actions.** Deletes, payments and outbound messages should return a preview for confirmation or run against a dry-run path first.
+
+**Cheaper tokens.** The opposite, usually. Tool schemas sit in the input of every request and are billed on every call, used or not. Providers also add a tool-use system prompt on top — on Claude models roughly 286 to 804 tokens depending on the model and `tool_choice` setting.
+
+MCP makes adding tools easy, which means teams add more of them, which raises the floor cost of all traffic including the calls that use none. I have written about [the tool-definition tax](/notes/tool-definition-tax) with the arithmetic; on most realistic workloads it lands between 8% and 25% of input cost.
+
+**A reason to trust the model.** Worth stating plainly because the schema creates a false sense of it. A declared schema tells the model what shape to produce. It does not make the model produce it, and it does not make the values correct. `customer_id: "4471"` can be perfectly schema-valid and refer to someone else's customer.
+
+## What I would do differently
+
+**Scope tools per phase, not per run.** This is the change with the largest effect and it took me too long to make.
+
+Agents are typically handed every tool they might need for the whole run. But most multi-step agents move through phases — gather information, decide, act. The tools for phase three are dead weight in phase one: billed on every call, and cluttering the decision space in a way that measurably degrades tool selection.
+
+Scoping tools to the current phase roughly halved definition overhead on the lead-generation pipeline, and selection errors went *down* rather than up. Fewer options, better choices — the same thing that happens with people.
+
+**Return errors the model can act on.** `Customer 4471 not found — search by email instead` gives the model a different action. `Error 500` gives it nothing, so it retries the identical call, reasoning it may work this time. That is a large share of the [runaway loops](/tools/failure-taxonomy#agent-loops-forever) I find, and it is a tool design problem rather than an orchestration one.
+
+**Log the rejection rate per tool.** When validation rejects a call, record it. Rejection rate per tool is one of the most useful agent health signals available and almost nobody tracks it. A tool whose rejection rate is climbing usually has an ambiguous description — the model is guessing at a format you never specified.
+
+**Keep descriptions specific but short.** These pull against each other. Ambiguous identifier formats cause hallucinated arguments; verbose descriptions are billed forever. `"ISO 8601 date"` does the work that a three-line explanation with two examples was doing.
+
+## When not to use it
+
+If you have one agent, a handful of tools, and no plan to expose them to another client, MCP is overhead. You get another deployment surface, another thing to version, and schemas counting against your input tokens — in exchange for interoperability you are not using.
+
+The honest reason to adopt it is one of: you want tools reusable across several agents or clients, you want the tool boundary to be a process boundary for isolation or ownership reasons, or you want the discipline of a declared schema because your team keeps passing model output straight into functions.
+
+That last one is a legitimate reason to adopt a protocol, and it is the one I would most often give. Just be clear that you are buying a *prompt to do the right thing*, not the right thing itself.

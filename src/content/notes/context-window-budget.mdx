@@ -1,0 +1,92 @@
+---
+title: 'Where your context window actually goes'
+description: 'A million-token window does not mean you should use it. Decompose one real conversation and the proportions are usually a surprise — history dominates, tool definitions are larger than expected, and the useful content is a minority of what you pay for.'
+published: '2026-08-02'
+readingMinutes: 8
+keywords:
+  - LLM context window
+  - context window budget
+  - conversation history cost
+  - LLM token usage
+faq:
+  - q: 'Why does my LLM bill grow when traffic is flat?'
+    a: 'Almost always because tokens per call grew rather than calls growing. The usual causes, in order: conversation history resent in full every turn so per-turn cost rises with turn count; retrieval returning more or larger chunks after a reindex; tool definitions added over time; and a silent fallback to a more expensive model.\n\nChart input tokens against turn index. A rising line identifies the first cause immediately.'
+  - q: 'Should I use the full context window if the model supports a million tokens?'
+    a: 'No. You pay per token regardless of the window size, and long contexts measurably degrade instruction-following — the further your constraints sit from the end of the input, the less reliably they are applied.\n\nA large window is insurance against truncation, not a budget to spend.'
+  - q: 'How do I bound conversation history without losing context?'
+    a: 'Keep a sliding window of recent turns plus a structured state object rebuilt each turn holding the durable facts — entities, decisions, constraints. Summarise older turns rather than dropping them silently.\n\nThe common mistake is naive truncation that eventually slides the system prompt out of the payload entirely. Verify by printing the exact final payload at turn 40.'
+---
+
+Model context windows reached a million tokens and a lot of teams treated that as permission. It is not a budget. You pay per token regardless of how large the window is, and long contexts make instruction-following measurably worse.
+
+The useful exercise is not "how much can I fit" but "what am I actually sending." Decompose one real conversation and the proportions are usually a surprise.
+
+## Decompose one conversation
+
+Take a representative request at a representative turn depth and count tokens by category:
+
+| Category | What it is | Typically |
+| --- | --- | --- |
+| System prompt | Instructions, persona, constraints | Stable, cacheable |
+| Tool definitions | Every schema, plus the provider's tool-use preamble | Larger than expected |
+| Conversation history | Prior turns, resent | **Usually the largest** |
+| Retrieved context | RAG chunks | Second largest, often over-fetched |
+| User input | What they actually said | Almost always the smallest |
+
+Two findings recur.
+
+**History dominates at depth.** Resending the transcript each turn makes per-turn cost grow linearly with turn count. A 40-turn conversation can cost roughly twenty times a 5-turn one. Teams monitoring request *counts* see flat traffic while spend multiplies — which is the mechanism behind most [unexplained cost spikes](/tools/failure-taxonomy#unexpected-llm-cost-spike).
+
+**Tool definitions are bigger than anyone guesses.** They are billed on every call, used or not, plus a provider preamble of roughly 286–804 tokens depending on the model. I have written that up separately as [the tool-definition tax](/notes/tool-definition-tax) — the short version is that teams are routinely out by a factor of two or three.
+
+The [cost calculator](/tools/agent-cost-calculator) keeps these as separate inputs precisely so you can see the split rather than one aggregate number.
+
+## Longer context is not neutral
+
+Cost is the obvious argument. The quality argument matters more and gets less attention.
+
+As the input grows, your instructions become a smaller and more distant fraction of it. Early turns follow the rules; by turn twenty the agent has drifted — wrong tone, abandoned constraints, forgotten refusals. Nothing errored. The instructions are simply competing with an ever-growing transcript for attention.
+
+Reproduce it directly: run a 30-turn conversation and check whether compliance decays with turn count. If it does, you have [context degradation](/tools/failure-taxonomy#agent-forgets-instructions-long-conversations) rather than a prompt-quality problem, and rewriting the prompt will not fix it.
+
+Two consequences worth internalising:
+
+**Re-assert critical constraints late in the payload.** Structurally pin hard rules near the end rather than only at the beginning.
+
+**Enforce the rules that must hold in code.** If a constraint genuinely matters, verify the output rather than trusting the instruction. Prompts are advisory; code is enforcement. This is the same principle that makes prompt-based tenant scoping unsafe.
+
+## Bounding history without losing the thread
+
+The naive fix is a sliding window of the last N messages, and it has a failure mode people hit in production: **it eventually slides the system prompt out.** Your constraints leave the payload and behaviour changes with no deploy.
+
+Verify this rather than assuming. Print the exact final payload at turn 40 and confirm your constraints are still in it. I have found this bug in systems whose authors were confident it was not there.
+
+What works better:
+
+**Separate durable state from conversational history.** Constraints, entities and decisions belong in a structured state object rebuilt each turn — not left to survive inside a transcript. The transcript carries the conversation; the state object carries the facts. Then trimming the transcript is safe by construction.
+
+**Summarise older turns rather than dropping them.** With one caution: summarisers preserve narrative and discard rules, because rules read as boilerplate. Inspect a generated summary and check whether the operating constraints are still present. Usually they are not.
+
+**Test at length.** Most eval suites test three-turn exchanges. Drift only appears at depth, so include long-conversation cases — three of the [thirty starting cases](/solutions/agent-eval-suites) are reserved for exactly this.
+
+## Retrieval is a budget line too
+
+Retrieved context is usually the second-largest category and the least examined. Top-k and chunk size are frequently set once during prototyping and never revisited.
+
+Two checks:
+
+**Is the answer actually in what you retrieved?** Search for a question you know the answer to and read the chunks. Over-fetching to compensate for poor retrieval is expensive and does not fix the underlying problem — [retrieval failures](/tools/failure-taxonomy#rag-returns-irrelevant-results) need measuring separately from answer quality, or you will tune generation prompts while the defect is upstream.
+
+**Did it change silently?** A reindex or a changed top-k multiplies input tokens on every call with no code change. Compare average retrieved-context length before and after your last indexing change.
+
+## The practical routine
+
+1. **Decompose one real conversation** by category. An hour of work, and it usually surfaces one surprise.
+2. **Chart input tokens against turn index.** A rising line means unbounded history.
+3. **Count your serialised tool definitions.** Compare to average input tokens per call.
+4. **Print the payload at turn 40** and confirm your constraints survived.
+5. **Log token counts by category** on every call, so the next drift is visible in days rather than at invoice time.
+
+That last one is the durable fix. Everything else is a point-in-time audit; category-level logging turns context budget into something you can watch. It is why the [trace spec](/solutions/llm-observability) separates prompt, tool and cached input tokens rather than recording one input figure.
+
+A million-token window is insurance against truncation. Treat it as a limit, not an allowance.

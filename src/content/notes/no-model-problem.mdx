@@ -1,0 +1,73 @@
+---
+title: "Your agent doesn't have a model problem"
+description: 'Almost every failing agent I have looked at is failing on engineering discipline, not model capability. The evidence is that upgrading the model rarely fixes it — and the four things that do are unglamorous.'
+published: '2026-08-02'
+readingMinutes: 8
+keywords:
+  - why AI agents fail in production
+  - AI agent reliability
+  - LLM engineering discipline
+  - production AI systems
+faq:
+  - q: 'Why do AI agents fail in production?'
+    a: 'Overwhelmingly because of missing engineering discipline rather than model capability: no evaluation suite so regressions are invisible, no validation between model output and side effects, no bounded resources so cost and latency are unbounded, and no tracing so failures cannot be diagnosed.\n\nThe diagnostic test is simple — if upgrading to a stronger model would not fix your problem, it was never a model problem.'
+  - q: 'Will a better model fix my agent?'
+    a: 'Rarely, and there is a cheap way to find out. Swap in the strongest model available and run your worst cases. If the failures persist, the defect is in the surrounding system: retrieval, tool validation, context management or missing evals.\n\nTeams that skip this test spend months and significant budget on model upgrades that move nothing.'
+  - q: 'What should I fix first in an unreliable agent?'
+    a: 'Validate tool-call arguments before execution, and put a hard ceiling on spend per request. Those two are days of work each and they are the failures that cause real damage rather than merely bad answers.\n\nThen build an eval suite, because until one exists every subsequent change is an unmeasured bet.'
+---
+
+Almost every team that has asked me to look at a misbehaving agent believed, at least initially, that they had a model problem. The prompt needed work. The model was not smart enough. Maybe fine-tuning would help.
+
+Almost none of them did.
+
+There is a cheap test for this and I now run it first. Swap in the strongest model you have access to, change nothing else, and run your worst known cases. If the failures persist — and they usually do — the defect was never in the model. You have just spent twenty minutes ruling out the expensive hypothesis.
+
+## What is actually breaking
+
+A prototype needs to work once, on inputs chosen by someone who knows how the system works. A product needs to work on inputs nobody anticipated, at a cost somebody forecast, with a failure trail somebody can follow at 2am.
+
+Everything between those two states is ordinary engineering. Four things, specifically.
+
+**Nothing tells you when quality drops.** An agent has no compiler. A two-word prompt change can break tool selection on 8% of inputs and nothing will report it. You find out from a customer, weeks later, with no way to attribute the regression to the change that caused it. Teams in this position have thorough unit tests on their glue code and zero automated tests on the thing the product actually does.
+
+**Model output reaches real systems unvalidated.** The model picks a correct tool and fabricates its arguments — a plausible customer ID, an out-of-range date, an enum value that was never defined. The call succeeds against a real system, which is what makes this the failure mode most likely to cause actual damage rather than a merely bad answer. I have written this up in more detail as [hallucinated tool arguments](/tools/failure-taxonomy#hallucinated-tool-arguments), and it remains the single most common critical finding I make.
+
+**Nothing is bounded.** Agent loops are while-loops with a language model as the exit condition. Without a hard step ceiling, a model that never reports satisfaction never exits, and every iteration is billed. Conversation history resent in full on every turn makes per-turn cost grow linearly with turn count. A 40-turn conversation can cost twenty times a 5-turn one, and nobody notices until the invoice.
+
+**Failures cannot be reproduced.** A customer reports a bad answer from last Tuesday. Which prompt version produced it? Which model version? What did retrieval return? Without a trace tying those together under one run ID, every investigation starts from zero, and some failures are simply never explained.
+
+## Why this is so consistently misdiagnosed
+
+Three reasons, and they compound.
+
+The first is that the model is the novel component, so it attracts the attention. When something unfamiliar sits next to something familiar and the system breaks, the unfamiliar part looks guilty. It usually is not.
+
+The second is that model changes are *easy to try*. Changing a model is a one-line diff. Building an eval suite is four days of work with no immediate visible output. Under pressure, teams do the thing they can do this afternoon, and doing it repeatedly feels like progress.
+
+The third is the interesting one: **without evals, a model change appears to work.** You swap the model, try a few prompts by hand, and they look better. They may well be better on those inputs. You have no idea what happened to the other 95% of your traffic, because you have no instrument that measures it. So the intervention gets recorded as a success and the underlying problem persists.
+
+That third reason is why I push evals before anything else. Not because measurement is virtuous, but because **without it you cannot tell which of your interventions are working**, and a team that cannot tell will keep choosing the cheap intervention forever.
+
+## The uncomfortable version
+
+The reliability work is unglamorous. Validate at boundaries. Bound your resources. Make failures traceable. Test that changes did not break things.
+
+Data engineering learned all of this in the 2010s, painfully, and none of it is novel. The largest system I have architected processes [520 million parameters every fifteen minutes](/work/telecom-throughput), and its hardest lesson had nothing to do with throughput: a system that accepts more work than it can finish does not slow down, it collapses. A 20% input spike caused an outage because the pipeline had no backpressure — it had optimism.
+
+An agent run with no step ceiling is an unbounded queue. Retrying a failing tool without backoff is redelivery amplification. No per-run token budget is a pipeline accepting work it cannot afford to finish. The AI industry is rediscovering, expensively, what was already known.
+
+## Where to start
+
+If you have none of the four, do them in this order. The sequencing matters more than it looks.
+
+1. **Validate tool arguments.** Days of work, and it is the failure that damages customers rather than annoying them.
+2. **Cap spend per request and per run.** Not a monthly budget alert — that notifies you after the money is gone.
+3. **Build a small eval suite.** Thirty cases from real traffic. Everything after this becomes measurable, which is what makes the rest safe.
+4. **Add tracing.** One run ID across the whole run, so a reported failure can be reproduced.
+
+Steps 1 and 2 are protection. Step 3 is what turns further work from guessing into engineering. Step 4 is what lets you find the next problem yourself.
+
+The full method for each is on the [solutions pages](/solutions), with effort estimates, and the [readiness scorecard](/scorecard) will tell you which of the four you are missing in about four minutes.
+
+None of it requires a better model. That is the point.
