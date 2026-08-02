@@ -18,7 +18,16 @@
   "assets": {
     "directory": "./dist",
     // Astro emits /404.html; serve it for unmatched paths rather than a bare Cloudflare error.
-    "not_found_handling": "404-page"
+    "not_found_handling": "404-page",
+    // Astro builds /solutions/index.html, and Cloudflare's default ("auto-trailing-slash")
+    // therefore 307-redirects /solutions → /solutions/. But Seo.astro emits canonical URLs
+    // WITHOUT a trailing slash, so the served URL would contradict the canonical tag and
+    // every internal link would cost a redirect hop.
+    //
+    // "drop-trailing-slash" serves /solutions directly from /solutions/index.html and
+    // redirects the slashed form instead — so the served URL, the canonical tag, the sitemap
+    // and every internal href all agree on one spelling.
+    "html_handling": "drop-trailing-slash"
   },
   "observability": {
     "enabled": true
