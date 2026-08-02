@@ -1,0 +1,26 @@
+{
+  // Static-assets-only Worker.
+  //
+  // There is deliberately NO "main" field. Without one, Cloudflare deploys the contents of
+  // ./dist as static files and runs no Worker script — which is exactly what this site is.
+  //
+  // This file exists to stop Cloudflare's framework detection from adding @astrojs/cloudflare
+  // during the build. That adapter targets the Workers runtime, which cannot load the native
+  // binary resvg uses to render OG images, so the build fails with UNLOADABLE_DEPENDENCY.
+  // resvg only ever runs on the build machine; declaring the deployment explicitly keeps it
+  // that way.
+  //
+  // If you ever genuinely need server-side rendering, that is the point to add the adapter —
+  // and to move OG generation off the request path first.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "durgeshrathod-com",
+  "compatibility_date": "2026-08-02",
+  "assets": {
+    "directory": "./dist",
+    // Astro emits /404.html; serve it for unmatched paths rather than a bare Cloudflare error.
+    "not_found_handling": "404-page"
+  },
+  "observability": {
+    "enabled": true
+  }
+}
