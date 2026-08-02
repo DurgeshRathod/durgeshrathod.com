@@ -1,0 +1,455 @@
+---
+import type { GetStaticPaths } from 'astro';
+import Base from '../../layouts/Base.astro';
+import CtaRow from '../../components/CtaRow.astro';
+import Faq from '../../components/Faq.astro';
+import industries from '../../data/industries.json';
+import solutions from '../../data/solutions.json';
+import taxonomy from '../../data/taxonomy.json';
+import { href } from '../../lib/paths.ts';
+import { faqSchema, breadcrumbSchema, articleSchema, ID, type QA } from '../../lib/seo.ts';
+
+/*
+  Industry spokes. Same JSON-driven pattern as /solutions, with two additions that
+  only matter here: a `proof` block tying the page to shipped work in that domain,
+  and an optional `regulatory` table.
+
+  These pages are only credible because the proof is real. An industry page for a
+  domain I had not shipped in would be the exact thing I warned against — an
+  industry-noun swap — so there are four, not twelve.
+*/
+
+export const getStaticPaths: GetStaticPaths = () =>
+  industries.industries.map((x) => ({ params: { slug: x.slug }, props: { x } }));
+
+const { x } = Astro.props;
+const meta = industries.meta;
+
+const failures = x.dominantFailures
+  .map((id) => taxonomy.symptoms.find((s) => s.id === id))
+  .filter((s): s is (typeof taxonomy.symptoms)[number] => Boolean(s));
+
+const relSolutions = x.relevantSolutions
+  .map((slug) => solutions.solutions.find((s) => s.slug === slug))
+  .filter((s): s is (typeof solutions.solutions)[number] => Boolean(s));
+
+const others = industries.industries
+  .filter((o) => o.slug !== x.slug)
+  .sort((a, b) => a.order - b.order);
+
+const regulatory = (x as Record<string, any>).regulatory as
+  | { name: string; effective: string; whatItMeans: string; engineeringImplication: string }[]
+  | undefined;
+
+const schema = [
+  articleSchema({
+    title: x.h1,
+    description: x.description,
+    path: `/industries/${x.slug}`,
+    published: meta.updated,
+    section: 'Industries',
+    keywords: x.keywords,
+  }),
+  {
+    '@type': 'Service',
+    name: `AI agent reliability for ${x.name}`,
+    serviceType: 'AI agent reliability consulting',
+    description: x.description,
+    provider: { '@id': ID.person },
+    audience: { '@type': 'Audience', audienceType: x.whoIHelp.join('; ') },
+  },
+  faqSchema(x.faq as QA[]),
+  breadcrumbSchema([
+    { name: 'Home', path: '/' },
+    { name: 'Industries', path: '/industries' },
+    { name: x.name, path: `/industries/${x.slug}` },
+  ]),
+];
+---
+
+<Base
+  title={x.h1}
+  description={x.description}
+  path={`/industries/${x.slug}`}
+  schema={schema}
+  published={meta.updated}
+>
+  <!-- ── Header ─────────────────────────────────────────────────────────── -->
+  <section class="container-page pt-14 pb-10">
+    <nav aria-label="Breadcrumb" class="text-sm" style="color: var(--fg-subtle);">
+      <a href={href('/')} class="hover:underline">Home</a>
+      <span class="mx-1.5" aria-hidden="true">/</span>
+      <a href={href('/industries')} class="hover:underline">Industries</a>
+      <span class="mx-1.5" aria-hidden="true">/</span>
+      <span style="color: var(--fg-muted);">{x.name}</span>
+    </nav>
+
+    <p class="mt-8 text-xs font-semibold uppercase tracking-[0.14em]" style="color: var(--accent);">
+      {x.name}
+    </p>
+    <h1 class="text-h1 mt-3 max-w-4xl font-semibold" style="text-wrap: balance;">
+      {x.h1}
+    </h1>
+    <p class="text-lead mt-5 max-w-3xl" style="color: var(--fg-muted);">
+      {x.tagline}
+    </p>
+
+    <div class="mt-9">
+      <CtaRow source={`industry-${x.slug}`} intent="audit" primaryLabel="Talk about your system" booking={false} />
+    </div>
+  </section>
+
+  <!-- ── Proof: the reason this page is credible ─────────────────────────── -->
+  <section class="border-y py-10" style="background: var(--bg-raised);">
+    <div class="container-page">
+      <div class="grid gap-8 lg:grid-cols-[auto_1fr] lg:gap-12">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-wider" style="color: var(--fg-subtle);">
+            What I have shipped here
+          </p>
+          <p class="text-h1 mt-2 font-semibold tabular-nums tracking-tight" style="color: var(--accent);">
+            {x.proof.stat}
+          </p>
+          <p class="mt-1 max-w-[16rem] text-sm font-medium">{x.proof.label}</p>
+        </div>
+        <div class="lg:pt-7">
+          <p class="max-w-3xl text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+            {x.proof.detail}
+          </p>
+          {
+            x.proof.caseStudy && (
+              <a
+                href={href(`/work/${x.proof.caseStudy}`)}
+                class="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold"
+                style="color: var(--accent);"
+              >
+                Read the full case study
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="size-3.5" aria-hidden="true">
+                  <path d="M5 12h14M13 6l6 6-6 6" />
+                </svg>
+              </a>
+            )
+          }
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Who / what ─────────────────────────────────────────────────────── -->
+  <section class="container-page py-14">
+    <div class="grid gap-5 lg:grid-cols-2">
+      <div class="rounded-2xl border p-7" style="background: var(--bg-raised);">
+        <h2 class="text-h3 font-semibold">Who I work with here</h2>
+        <ul class="mt-4 grid gap-2.5">
+          {
+            x.whoIHelp.map((w) => (
+              <li class="flex gap-3 text-[15px]">
+                <span class="mt-2 size-1.5 shrink-0 rounded-full" style="background: var(--accent);" aria-hidden="true" />
+                <span style="color: var(--fg-muted);">{w}</span>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+      <div class="rounded-2xl border p-7" style="background: var(--bg-raised);">
+        <h2 class="text-h3 font-semibold">Systems I see in this domain</h2>
+        <ul class="mt-4 grid gap-2.5">
+          {
+            x.systems.map((sys) => (
+              <li class="flex gap-3 text-[15px]">
+                <span class="mt-2 size-1.5 shrink-0 rounded-full" style="background: var(--fg-subtle);" aria-hidden="true" />
+                <span style="color: var(--fg-muted);">{sys}</span>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── The constraint ─────────────────────────────────────────────────── -->
+  <section class="border-t py-14">
+    <div class="container-prose">
+      <h2 class="text-h2 font-semibold" style="text-wrap: balance;">
+        What makes agents hard in {x.name.toLowerCase()}
+      </h2>
+      <div class="prose mt-6">
+        {x.constraint.map((p) => <p>{p}</p>)}
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Artefacts ──────────────────────────────────────────────────────── -->
+  {
+    [x.asset, (x as Record<string, any>).secondAsset]
+      .filter(Boolean)
+      .map((asset: any) => (
+        <section class="border-t py-14">
+          <div class="container-page">
+            <h2 class="text-h2 max-w-3xl font-semibold" style="text-wrap: balance;">
+              {asset.title}
+            </h2>
+            <p class="mt-4 max-w-2xl text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+              {asset.intro}
+            </p>
+
+            {asset.kind === 'table' ? (
+              <div class="scroll-x mt-8">
+                <table class="w-full min-w-[680px] text-sm">
+                  <thead>
+                    <tr class="border-b text-left">
+                      {asset.columns.map((c: string) => (
+                        <th class="px-3 py-2.5 font-semibold">{c}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {asset.rows.map((row: string[]) => (
+                      <tr class="border-b align-top">
+                        {row.map((cell: string, ci: number) =>
+                          ci === 0 ? (
+                            <th scope="row" class="px-3 py-3 text-left font-medium">
+                              {cell}
+                            </th>
+                          ) : (
+                            <td class="px-3 py-3 leading-relaxed" style="color: var(--fg-muted);">
+                              {cell}
+                            </td>
+                          )
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <ol class="mt-8 grid gap-3">
+                {asset.items.map((item: string, i: number) => (
+                  <li class="flex gap-4 rounded-xl border p-4" style="background: var(--bg-raised);">
+                    <span
+                      class="grid size-6 shrink-0 place-items-center rounded-md font-mono text-[11px] font-bold"
+                      style="background: var(--accent-soft); color: var(--accent);"
+                    >
+                      {i + 1}
+                    </span>
+                    <span class="text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+                      {item}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            )}
+
+            {asset.note && (
+              <p
+                class="mt-6 max-w-3xl border-l-2 pl-4 text-[15px] leading-relaxed"
+                style="border-color: var(--accent); color: var(--fg-muted);"
+              >
+                {asset.note}
+              </p>
+            )}
+          </div>
+        </section>
+      ))
+  }
+
+  <!-- ── Regulatory ─────────────────────────────────────────────────────── -->
+  {
+    regulatory && regulatory.length > 0 && (
+      <section class="border-t py-14">
+        <div class="container-page">
+          <h2 class="text-h2 font-semibold">What the rules imply for how you build</h2>
+          <p class="text-lead mt-4 max-w-2xl" style="color: var(--fg-muted);">
+            Not a compliance summary — the engineering consequence of each obligation.
+          </p>
+
+          <div class="mt-10 grid gap-4">
+            {regulatory.map((r) => (
+              <article class="rounded-2xl border p-6 sm:p-7" style="background: var(--bg-raised);">
+                <div class="flex flex-wrap items-baseline justify-between gap-3">
+                  <h3 class="text-h3 font-semibold leading-snug">{r.name}</h3>
+                  <span
+                    class="rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide"
+                    style="background: var(--accent-soft); color: var(--accent);"
+                  >
+                    {r.effective}
+                  </span>
+                </div>
+                <p class="mt-3 max-w-3xl text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+                  {r.whatItMeans}
+                </p>
+                <p
+                  class="mt-4 max-w-3xl border-l-2 pl-4 text-[15px] leading-relaxed"
+                  style="border-color: var(--accent); color: var(--fg-muted);"
+                >
+                  <strong style="color: var(--fg);">What it means for the build:</strong>{' '}
+                  {r.engineeringImplication}
+                </p>
+              </article>
+            ))}
+          </div>
+
+          <p
+            class="mt-6 max-w-3xl rounded-xl border p-4 text-[13px] leading-relaxed"
+            style="color: var(--fg-subtle);"
+          >
+            {meta.legalDisclaimer}
+          </p>
+        </div>
+      </section>
+    )
+  }
+
+  <!-- ── Failure modes that dominate here ───────────────────────────────── -->
+  {
+    failures.length > 0 && (
+      <section class="border-t py-14">
+        <div class="container-page">
+          <h2 class="text-h2 font-semibold">The failure modes that dominate here</h2>
+          <p class="text-lead mt-4 max-w-2xl" style="color: var(--fg-muted);">
+            Every agent can fail in all nine ways. These are the three that cause the most damage
+            in this domain specifically.
+          </p>
+          <div class="mt-8 grid gap-4 md:grid-cols-3">
+            {failures.map((f) => (
+              <a
+                href={href(`/tools/failure-taxonomy#${f.slug}`)}
+                class="group rounded-2xl border p-6 transition-transform hover:-translate-y-0.5"
+                style="background: var(--bg-raised);"
+              >
+                <p
+                  class="text-[11px] font-bold uppercase tracking-wide"
+                  style={`color: ${f.severity === 'medium' ? 'var(--warn)' : 'var(--risk)'};`}
+                >
+                  {f.severity} · {f.frequency}
+                </p>
+                <h3 class="mt-2 text-[16px] font-semibold leading-snug group-hover:underline decoration-1 underline-offset-4">
+                  {f.symptom}
+                </h3>
+                <p class="mt-2 text-[13px] leading-relaxed" style="color: var(--fg-muted);">
+                  {f.summary.split('. ')[0]}.
+                </p>
+              </a>
+            ))}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  <!-- ── Relevant solutions ─────────────────────────────────────────────── -->
+  {
+    relSolutions.length > 0 && (
+      <section class="border-t py-14">
+        <div class="container-page">
+          <h2 class="text-h2 font-semibold">How I would approach it</h2>
+          <p class="text-lead mt-4 max-w-2xl" style="color: var(--fg-muted);">
+            The engagements that apply most often in this domain. Each has the full method and
+            effort estimates.
+          </p>
+          <div class="mt-8 grid gap-4 md:grid-cols-3">
+            {relSolutions.map((s) => (
+              <a
+                href={href(`/solutions/${s.slug}`)}
+                class="group flex flex-col rounded-2xl border p-6 transition-transform hover:-translate-y-0.5"
+                style="background: var(--bg-raised);"
+              >
+                <h3 class="text-h3 font-semibold leading-snug">{s.name}</h3>
+                <p class="mt-2 text-[15px] font-medium leading-snug">{s.tagline}</p>
+                <p class="mt-2 flex-1 text-[13px] leading-relaxed" style="color: var(--fg-muted);">
+                  {s.outcome}
+                </p>
+                <span
+                  class="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold"
+                  style="color: var(--accent);"
+                >
+                  The method
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    class="size-3.5 transition-transform group-hover:translate-x-0.5"
+                    aria-hidden="true"
+                  >
+                    <path d="M5 12h14M13 6l6 6-6 6" />
+                  </svg>
+                </span>
+              </a>
+            ))}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  <!-- ── FAQ ────────────────────────────────────────────────────────────── -->
+  <section class="border-t py-14">
+    <div class="container-page">
+      <h2 class="text-h2 font-semibold">Questions from this domain</h2>
+      <div class="mt-8 max-w-3xl">
+        <Faq items={x.faq as QA[]} />
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Close ──────────────────────────────────────────────────────────── -->
+  <section class="pb-8">
+    <div class="container-page">
+      <div
+        class="rounded-3xl border p-8 sm:p-10"
+        style="background: var(--bg-raised); box-shadow: var(--shadow-card);"
+      >
+        <div class="grid gap-8 lg:grid-cols-[1.3fr_1fr] lg:items-start">
+          <div>
+            <h2 class="text-h2 font-semibold" style="text-wrap: balance;">
+              Building this in {x.name.toLowerCase()}?
+            </h2>
+            <p class="mt-4 max-w-xl text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+              Tell me what your system does and what worries you. I have shipped in this domain, so
+              I can usually name the specific constraint you are about to hit — and that answer is
+              free.
+            </p>
+            <div class="mt-8">
+              <CtaRow source={`industry-${x.slug}-close`} intent="audit" primaryLabel="Message me" />
+            </div>
+          </div>
+
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-wider" style="color: var(--fg-subtle);">
+              Other domains
+            </p>
+            <ul class="mt-3 grid gap-2">
+              {
+                others.map((o) => (
+                  <li>
+                    <a
+                      href={href(`/industries/${o.slug}`)}
+                      class="group flex items-baseline justify-between gap-3 rounded-lg border p-3 text-sm transition-colors"
+                      style="background: var(--bg);"
+                    >
+                      <span class="font-medium group-hover:underline decoration-1 underline-offset-4">
+                        {o.name}
+                      </span>
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.5"
+                        class="size-3.5 shrink-0 transition-transform group-hover:translate-x-0.5"
+                        style="color: var(--accent);"
+                        aria-hidden="true"
+                      >
+                        <path d="M5 12h14M13 6l6 6-6 6" />
+                      </svg>
+                    </a>
+                  </li>
+                ))
+              }
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</Base>

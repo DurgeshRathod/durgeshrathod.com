@@ -1,0 +1,185 @@
+---
+interface Node {
+  id: string;
+  label: string;
+  /** Technology or role, shown under the label. */
+  sub?: string;
+  /** What this stage does. */
+  detail: string;
+  /** The decision made here and what it cost — the part worth reading. */
+  tradeoff?: string;
+  /** Marks a stage that caused a production problem. */
+  problem?: boolean;
+}
+
+interface Props {
+  title: string;
+  caption?: string;
+  nodes: Node[];
+}
+
+const { title, caption, nodes } = Astro.props;
+
+/*
+  Step-through architecture diagram.
+
+  Every node's detail and tradeoff is rendered in the HTML, not fetched or injected on
+  click — so the substance is crawlable and readable without JavaScript. JS adds the
+  selection behaviour that makes it feel like a diagram rather than a list.
+*/
+---
+
+<!--
+  On large screens the figure breaks out of the 44rem prose column: a seven-stage flow
+  needs the width, and horizontal scrolling a diagram is a worse experience than reading
+  a slightly wider figure. Below lg it stays in the text column and stacks vertically.
+-->
+<figure
+  class="my-10 not-prose lg:relative lg:left-1/2 lg:w-[min(72rem,92vw)] lg:-translate-x-1/2"
+  data-diagram
+>
+  <figcaption class="mb-4">
+    <p class="text-xs font-semibold uppercase tracking-[0.14em]" style="color: var(--accent);">
+      Architecture
+    </p>
+    <h3 class="text-h3 mt-1.5 font-semibold">{title}</h3>
+    {
+      caption && (
+        <p class="mt-2 max-w-2xl text-sm leading-relaxed" style="color: var(--fg-muted);">
+          {caption}
+        </p>
+      )
+    }
+    <p class="mt-2 text-[13px]" style="color: var(--fg-subtle);">
+      Select a stage to see the decision made there.
+    </p>
+  </figcaption>
+
+  <div class="rounded-2xl border p-5 sm:p-6" style="background: var(--bg-raised);">
+    <!-- Flow: horizontal on wide screens, vertical on narrow, scrolls in its own box. -->
+    <ol class="scroll-x flex flex-col gap-2 lg:flex-row lg:items-stretch lg:gap-0">
+      {
+        nodes.map((n, i) => (
+          <li class="flex items-center gap-2 lg:flex-1 lg:flex-col lg:gap-0">
+            <button
+              type="button"
+              data-node={n.id}
+              aria-expanded="false"
+              class="group w-full flex-1 rounded-xl border p-3.5 text-left transition-all lg:min-h-[104px]"
+              style={`background: var(--bg); ${n.problem ? 'border-color: var(--risk);' : ''}`}
+            >
+              <span class="flex items-center gap-2">
+                <span
+                  class="grid size-5 shrink-0 place-items-center rounded font-mono text-[10px] font-bold"
+                  style={
+                    n.problem
+                      ? 'background: var(--risk); color: white;'
+                      : 'background: var(--bg-sunken); color: var(--fg-subtle);'
+                  }
+                >
+                  {i + 1}
+                </span>
+                <span class="text-[14px] font-semibold leading-tight">{n.label}</span>
+              </span>
+              {n.sub && (
+                <span class="mt-1.5 block font-mono text-[11px] leading-tight" style="color: var(--fg-subtle);">
+                  {n.sub}
+                </span>
+              )}
+              {n.problem && (
+                <span class="mt-1.5 block text-[11px] font-bold uppercase tracking-wide" style="color: var(--risk);">
+                  broke here
+                </span>
+              )}
+            </button>
+
+            {i < nodes.length - 1 && (
+              <span class="shrink-0 px-1 lg:px-1.5" aria-hidden="true" style="color: var(--fg-subtle);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-4 rotate-90 lg:rotate-0">
+                  <path d="M5 12h14M13 6l6 6-6 6" />
+                </svg>
+              </span>
+            )}
+          </li>
+        ))
+      }
+    </ol>
+
+    <!-- Detail panels: all present in the DOM, one visible at a time. -->
+    <div class="mt-5 border-t pt-5">
+      {
+        nodes.map((n, i) => (
+          <div data-panel={n.id} hidden={i !== 0}>
+            <h4 class="text-[15px] font-semibold">
+              <span class="font-mono text-xs" style="color: var(--accent);">
+                {String(i + 1).padStart(2, '0')}
+              </span>{' '}
+              {n.label}
+              {n.sub && (
+                <span class="ml-2 font-mono text-[12px] font-normal" style="color: var(--fg-subtle);">
+                  {n.sub}
+                </span>
+              )}
+            </h4>
+            <p class="mt-2 max-w-3xl text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+              {n.detail}
+            </p>
+            {n.tradeoff && (
+              <p
+                class="mt-3 max-w-3xl rounded-lg border-l-2 pl-3.5 text-[14px] leading-relaxed"
+                style={`border-color: ${n.problem ? 'var(--risk)' : 'var(--accent)'}; color: var(--fg-muted);`}
+              >
+                <strong style="color: var(--fg);">{n.problem ? 'What went wrong:' : 'Tradeoff:'}</strong>{' '}
+                {n.tradeoff}
+              </p>
+            )}
+          </div>
+        ))
+      }
+    </div>
+  </div>
+</figure>
+
+<script is:inline>
+  (function () {
+    document.querySelectorAll('[data-diagram]').forEach(function (fig) {
+      var buttons = Array.from(fig.querySelectorAll('[data-node]'));
+      var panels = Array.from(fig.querySelectorAll('[data-panel]'));
+      if (!buttons.length) return;
+
+      function select(id) {
+        buttons.forEach(function (b) {
+          var on = b.getAttribute('data-node') === id;
+          b.setAttribute('aria-expanded', String(on));
+          b.style.background = on ? 'var(--accent-soft)' : 'var(--bg)';
+          if (!b.style.borderColor.includes('risk')) {
+            b.style.borderColor = on ? 'var(--accent)' : 'var(--border)';
+          }
+        });
+        panels.forEach(function (p) {
+          if (p.getAttribute('data-panel') === id) p.removeAttribute('hidden');
+          else p.setAttribute('hidden', '');
+        });
+      }
+
+      buttons.forEach(function (b, i) {
+        b.addEventListener('click', function () {
+          select(b.getAttribute('data-node'));
+        });
+        // Arrow keys move between stages, like a real stepper.
+        b.addEventListener('keydown', function (ev) {
+          var next = null;
+          if (ev.key === 'ArrowRight' || ev.key === 'ArrowDown') next = buttons[i + 1];
+          if (ev.key === 'ArrowLeft' || ev.key === 'ArrowUp') next = buttons[i - 1];
+          if (next) {
+            ev.preventDefault();
+            next.focus();
+            select(next.getAttribute('data-node'));
+          }
+        });
+      });
+
+      select(buttons[0].getAttribute('data-node'));
+    });
+  })();
+</script>

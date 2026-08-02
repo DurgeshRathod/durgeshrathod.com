@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.astro/
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example
+.vercel
+.wrangler
+
+# Client delivery kit — internal. The generator is excluded too: gitignoring only the
+# output is pointless when the source contains the same content (pricing logic, capacity
+# model, objection scripts). Both live in a separate private repository.
+delivery/
+scripts/build-delivery-kit.mjs

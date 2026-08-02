@@ -1,0 +1,136 @@
+---
+import { SITE } from '../consts.ts';
+import { href } from '../lib/paths.ts';
+
+interface Props {
+  compact?: boolean;
+  /**
+   * Shows a small portrait beside the availability status. Used on the homepage hero only —
+   * a face there answers "is this a real person" at the moment of highest doubt, but
+   * repeating it in the footer of every page would be too much.
+   */
+  avatar?: boolean;
+}
+const { compact = false, avatar = false } = Astro.props;
+
+/*
+  Timezone overlap, computed live in the browser against the visitor's own clock.
+
+  This exists because it answers the first practical objection a US or EU client has
+  about hiring someone in India: "how many hours do we actually share?" A map answers
+  nothing; this answers the real question. Static fallback text is rendered server-side
+  so the panel is meaningful without JavaScript and to a crawler.
+*/
+---
+
+<div
+  data-availability
+  class:list={['rounded-xl border', compact ? 'p-4' : 'p-5']}
+  style="background: var(--bg-raised);"
+>
+  <div class="flex items-center gap-3">
+    {
+      avatar && (
+        <picture>
+          <source srcset={href('/portrait-160.webp')} type="image/webp" />
+          <img
+            src={href('/portrait-160.jpg')}
+            alt={SITE.name}
+            width="160"
+            height="160"
+            loading="lazy"
+            decoding="async"
+            class="size-10 shrink-0 rounded-full border object-cover"
+          />
+        </picture>
+      )
+    }
+    <div class="flex items-center gap-2">
+      <span class="relative grid size-2.5 place-items-center" aria-hidden="true">
+        <span
+          class="absolute size-2.5 animate-ping rounded-full opacity-60"
+          style="background: var(--good);"></span>
+        <span class="size-2 rounded-full" style="background: var(--good);"></span>
+      </span>
+      <span class="text-xs font-semibold uppercase tracking-wider" style="color: var(--good);">
+        Available for new work
+      </span>
+    </div>
+  </div>
+
+  <p class="mt-3 text-sm leading-relaxed" style="color: var(--fg-muted);">
+    Based in {SITE.location} ({SITE.utcOffset}). Local time{' '}
+    <span class="font-mono tabular-nums" style="color: var(--fg);" data-local-time>—</span>.
+  </p>
+
+  <dl class="mt-3 grid gap-x-4 gap-y-1.5 text-[13px] sm:grid-cols-2">
+    <div class="flex items-baseline justify-between gap-3 sm:contents">
+      <dt style="color: var(--fg-subtle);">Your time</dt>
+      <dd class="font-mono tabular-nums sm:text-right" data-visitor-time>—</dd>
+    </div>
+    <div class="flex items-baseline justify-between gap-3 sm:contents">
+      <dt style="color: var(--fg-subtle);">Working-hours overlap</dt>
+      <dd class="font-mono tabular-nums sm:text-right" data-overlap>—</dd>
+    </div>
+  </dl>
+
+  <p class="mt-3 text-[13px] leading-relaxed" style="color: var(--fg-subtle);">
+    I hold afternoons and evenings IST open for calls, which covers European mornings and
+    US mornings on the earlier side. Async-first either way.
+  </p>
+</div>
+
+<script is:inline>
+  (function () {
+    var root = document.querySelector('[data-availability]');
+    if (!root) return;
+
+    var IST_OFFSET_MIN = 330; // UTC+05:30
+    var WORK_START = 9;
+    var WORK_END = 21; // I deliberately extend availability to 21:00 IST for overlap.
+
+    function fmt(d, offsetMin) {
+      var utc = d.getTime() + d.getTimezoneOffset() * 60000;
+      var local = new Date(utc + offsetMin * 60000);
+      var h = local.getHours();
+      var m = local.getMinutes();
+      var ampm = h >= 12 ? 'pm' : 'am';
+      var h12 = h % 12 || 12;
+      return h12 + ':' + String(m).padStart(2, '0') + ampm;
+    }
+
+    function update() {
+      var now = new Date();
+
+      var istEl = root.querySelector('[data-local-time]');
+      if (istEl) istEl.textContent = fmt(now, IST_OFFSET_MIN);
+
+      var visEl = root.querySelector('[data-visitor-time]');
+      var visitorOffset = -now.getTimezoneOffset();
+      if (visEl) {
+        var tz = '';
+        try {
+          tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+        } catch (e) {}
+        visEl.textContent =
+          fmt(now, visitorOffset) + (tz ? ' · ' + tz.split('/').pop().replace(/_/g, ' ') : '');
+      }
+
+      // Count hours where my working window and a conventional 9–18 visitor window intersect.
+      var overlapEl = root.querySelector('[data-overlap]');
+      if (overlapEl) {
+        var shift = (visitorOffset - IST_OFFSET_MIN) / 60;
+        var hours = 0;
+        for (var h = WORK_START; h < WORK_END; h++) {
+          var visitorHour = ((((h + shift) % 24) + 24) % 24);
+          if (visitorHour >= 9 && visitorHour < 18) hours++;
+        }
+        overlapEl.textContent = hours > 0 ? hours + ' hrs/day' : 'async only';
+        if (hours === 0) overlapEl.style.color = 'var(--warn)';
+      }
+    }
+
+    update();
+    setInterval(update, 30000);
+  })();
+</script>

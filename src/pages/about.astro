@@ -1,0 +1,555 @@
+---
+import fs from 'node:fs';
+import path from 'node:path';
+import Base from '../layouts/Base.astro';
+import CtaRow from '../components/CtaRow.astro';
+import Availability from '../components/Availability.astro';
+import Testimonials from '../components/Testimonials.astro';
+import { SITE, PROFILES, PROOF, CV, NOW, PORTRAIT_CANDIDATES } from '../consts.ts';
+import { href } from '../lib/paths.ts';
+import { breadcrumbSchema, softwareSourceSchema, ID } from '../lib/seo.ts';
+
+/*
+  Portrait resolved at build time. If none of the candidate files exist we render a
+  designed monogram instead — a missing image can never ship as a broken <img>, and the
+  page never contains a visible "add photo here" placeholder.
+*/
+const portrait = PORTRAIT_CANDIDATES.find((f) =>
+  fs.existsSync(path.join(process.cwd(), 'public', f))
+);
+// A WebP sibling is served preferentially when present — same pixels, ~20% smaller.
+const portraitWebp = fs.existsSync(path.join(process.cwd(), 'public', 'portrait.webp'))
+  ? 'portrait.webp'
+  : null;
+
+const cvExists = fs.existsSync(path.join(process.cwd(), 'public', CV.path.replace(/^\//, '')));
+
+const timeline = [
+  {
+    period: 'Mar 2022 – present',
+    role: 'Technical Lead',
+    org: 'SourceFuse Technologies',
+    body: 'Architecture and delivery across AI products and large-scale data platforms. Built AI applications on OpenAI, Claude, AWS Bedrock, LangChain, CrewAI and Model Context Protocol, and architected a configuration-driven telecom platform processing 520M parameters per 15-minute cycle. Led design reviews, mentoring, release management and performance work across several teams.',
+  },
+  {
+    period: 'Feb 2021 – Feb 2022',
+    role: 'Senior Software Engineer',
+    org: 'SourceFuse Technologies',
+    body: 'Cloud-native backend services on AWS — microservices in Node.js and Python on ECS Fargate, CI/CD with CodePipeline, technical designs and mentoring.',
+  },
+  {
+    period: 'Dec 2018 – Jan 2021',
+    role: 'Software Engineer',
+    org: 'Flairlabs',
+    body: 'Backend services and enterprise applications on Node.js, AWS and SQL Server. REST APIs, database design, and production support across the full lifecycle.',
+  },
+  {
+    period: 'Jun 2017 – Dec 2018',
+    role: 'Application Engineer',
+    org: 'Merce Technologies',
+    body: 'Backend features and microservices, heavy SQL work, and first exposure to running things in production — which is where most of what I know actually came from.',
+  },
+];
+
+const alsoBuilt = [
+  {
+    name: 'AI-powered recruitment platform',
+    detail:
+      'Candidate and job matching with NLP and vector embeddings, Elasticsearch search, resume parsing and ATS integrations, across employer and candidate portals.',
+    tech: ['Python', 'Node.js', 'Elasticsearch', 'Bedrock'],
+    industry: 'recruitment-and-ats',
+  },
+  {
+    name: 'Digital contract lifecycle management',
+    detail:
+      'Enterprise CLM covering authoring, review, approvals, amendments and clause libraries.',
+    tech: ['Angular', 'Node.js', 'PostgreSQL', 'CKEditor'],
+    industry: 'legal-and-contracts',
+  },
+  {
+    name: 'AI meeting assistant',
+    detail:
+      'Real-time Zoom audio transcription with Whisper, then summarisation and action-item extraction.',
+    tech: ['Whisper', 'Bedrock', 'FastAPI', 'Docker'],
+    industry: null,
+  },
+  {
+    name: 'Multi-agent long-form writing system',
+    detail:
+      'Specialised agents collaborating on story planning, character consistency, drafting and editorial review across a book-length manuscript. A serious exercise in long-horizon context management.',
+    tech: ['CrewAI', 'MCP', 'Python'],
+    industry: null,
+  },
+  {
+    name: 'Lost child detection (computer vision)',
+    detail:
+      'Facial recognition over CCTV footage, using augmentation to improve recognition on poor-quality frames.',
+    tech: ['PyTorch', 'Dlib', 'Python'],
+    industry: null,
+  },
+  {
+    name: 'AI-driven GTM systems',
+    detail:
+      'Autonomous lead generation, WhatsApp retention workflows, and a HubSpot chatbot for qualification — AI applied to revenue rather than product features.',
+    tech: ['CrewAI', 'HubSpot', 'WhatsApp API'],
+    industry: null,
+  },
+];
+
+const packages = [
+  {
+    name: 'fast-intent-classifier',
+    install: 'pip install fast-intent-classifier',
+    detail: 'Fast intent classification (PyPI)',
+    url: PROFILES.pypi,
+  },
+  {
+    name: 'ai-test-gen-angular',
+    install: 'npm i ai-test-gen-angular',
+    detail: 'Generates Angular unit tests using LLMs (npm)',
+    url: PROFILES.npm,
+  },
+];
+
+const workingStyle = [
+  {
+    title: 'Async-first, written down',
+    body: 'You get a written findings document and a recorded walkthrough rather than a status meeting. Given the timezone gap that is not a compromise — it produces a better artefact, because writing forces the thinking to be finished.',
+  },
+  {
+    title: 'Bad news arrives early',
+    body: 'If an estimate is slipping or an approach is not working, you hear it from me while there is still time to change course. I would rather deliver an uncomfortable update in week one than a surprise in week three.',
+  },
+  {
+    title: 'I will tell you not to hire me',
+    body: 'If your gaps are ones your team can close, or the problem is not the one you think it is, I will say so. That has cost me engagements and earned me referrals, and I am not planning to stop.',
+  },
+  {
+    title: 'You keep everything',
+    body: 'Eval suites, traces, dashboards, documents. No dependency on me continuing, and nothing built in a way only I can maintain.',
+  },
+];
+
+const schema = [
+  {
+    '@type': 'AboutPage',
+    name: `About ${SITE.name}`,
+    mainEntity: { '@id': ID.person },
+  },
+  ...softwareSourceSchema(),
+  breadcrumbSchema([
+    { name: 'Home', path: '/' },
+    { name: 'About', path: '/about' },
+  ]),
+];
+---
+
+<Base
+  title="About — nine years of production systems, now aimed at agents"
+  description="Durgesh Rathod: Technical Lead with 9+ years across telecom, HR technology, recruitment and workflow automation. Distributed systems at 520M records per 15 minutes, and production AI on Bedrock, LangChain, CrewAI and MCP. CV, background and how I work."
+  path="/about"
+  schema={schema}
+>
+  <section class="container-page pt-14 pb-10">
+    <nav aria-label="Breadcrumb" class="text-sm" style="color: var(--fg-subtle);">
+      <a href={href('/')} class="hover:underline">Home</a>
+      <span class="mx-1.5" aria-hidden="true">/</span>
+      <span style="color: var(--fg-muted);">About</span>
+    </nav>
+
+    <div class="mt-8 grid gap-12 lg:grid-cols-[1.5fr_1fr] lg:gap-16">
+      <div>
+        <h1 class="text-h1 max-w-3xl font-semibold" style="text-wrap: balance;">
+          I spent nine years making systems not fall over. Now I do it for agents.
+        </h1>
+
+        <div class="prose mt-8 max-w-none">
+          <p>
+            I am a technical lead based in {SITE.location}, and my background is deliberately
+            unfashionable for someone working in AI: distributed systems, data pipelines, and
+            production support. I learned what reliability means by being the person who got
+            paged.
+          </p>
+          <p>
+            The largest system I have architected processes <strong>520 million telecom
+            parameters every fifteen minutes</strong> on Golang, Kafka, Kubernetes and PostgreSQL.
+            Not because throughput is impressive on its own, but because a fixed cycle time
+            teaches you something a demo never will: a system that accepts more work than it can
+            finish does not slow down, it collapses. That lesson turns out to be the single most
+            useful thing I know about AI agents.
+          </p>
+          <p>
+            Since 2022 I have been building AI products — conversational analytics over sensitive
+            multi-tenant data, multi-agent systems on CrewAI and Model Context Protocol,
+            text-to-SQL engines, retrieval pipelines, an agentic voice assistant, autonomous
+            lead-generation agents. Some of it worked immediately. More of it worked after I
+            stopped trusting the model with things a model should not be trusted with.
+          </p>
+          <p>
+            What I noticed across all of it: the teams struggling with agents were rarely
+            struggling with AI. They were missing validation at boundaries, bounded resources,
+            traceable failures, and any way to tell whether yesterday's change made things
+            better. That is ordinary engineering discipline, and it is
+            <a href={href('/solutions')}>what I now do for a living</a> — in
+            <a href={href('/industries')}>four domains I have actually shipped in</a>.
+          </p>
+          <p>
+            <strong>On working independently:</strong> this is a deliberate choice, not a gap
+            between jobs. Reliability work is the part of AI engineering that consistently gets
+            deprioritised inside a company, because features have an owner arguing for them and
+            reliability does not. Working from outside means I get handed the problem directly, with
+            a scope and a deadline, and I am not competing with a roadmap for attention. I take a
+            small number of engagements at a time for the same reason.
+          </p>
+          <p>
+            I also work at the business end of things, which is unusual for an engineer and
+            occasionally useful: I have led an initiative analysing customer data to find
+            expansion opportunities, built AI systems aimed directly at pipeline and retention,
+            and presented enterprise positioning strategy to a CEO. I mention it because it means
+            I will ask what a reliability problem costs you, not just how to fix it.
+          </p>
+        </div>
+      </div>
+
+      <div class="grid gap-5 lg:pt-2">
+        <!-- Portrait, or a designed monogram until one is added. -->
+        {
+          portrait ? (
+            <picture>
+              {portraitWebp && <source srcset={href(`/${portraitWebp}`)} type="image/webp" />}
+              <img
+                src={href(`/${portrait}`)}
+                alt={`${SITE.name}, AI reliability engineer based in ${SITE.location}`}
+                width="800"
+                height="800"
+                loading="eager"
+                fetchpriority="high"
+                decoding="async"
+                class="aspect-square w-full rounded-2xl border object-cover"
+                style="background: var(--bg-raised);"
+              />
+            </picture>
+          ) : (
+            <div
+              class="relative grid aspect-square w-full place-items-center overflow-hidden rounded-2xl border"
+              style="background: var(--bg-raised);"
+              role="img"
+              aria-label={`${SITE.name} — portrait not yet added`}
+            >
+              <div
+                class="pointer-events-none absolute inset-0 opacity-[0.16]"
+                aria-hidden="true"
+                style="background-image: linear-gradient(var(--border-strong) 1px, transparent 1px), linear-gradient(90deg, var(--border-strong) 1px, transparent 1px); background-size: 32px 32px;"
+              />
+              <span
+                class="relative font-semibold tracking-tighter"
+                style="font-size: clamp(3rem, 14vw, 6rem); color: var(--accent);"
+                aria-hidden="true">DR</span
+              >
+            </div>
+          )
+        }
+
+        <Availability />
+
+        {
+          cvExists && (
+            <div class="rounded-xl border p-5" style="background: var(--bg-raised);">
+              <h2 class="text-sm font-semibold">CV</h2>
+              <p class="mt-2 text-[13px] leading-relaxed" style="color: var(--fg-muted);">
+                Full history, projects and stack. Updated {CV.updated}.
+              </p>
+              <a
+                href={href(CV.path)}
+                download
+                data-analytics="about-cv-download"
+                class="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-opacity hover:opacity-90"
+                style="background: var(--accent-solid); color: var(--accent-solid-fg);"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-4" aria-hidden="true">
+                  <path d="M12 3v12m0 0-4-4m4 4 4-4M4 19h16" />
+                </svg>
+                Download PDF
+              </a>
+              <p class="mt-2 text-center font-mono text-[11px]" style="color: var(--fg-subtle);">
+                {CV.sizeKb} KB · PDF
+              </p>
+            </div>
+          )
+        }
+
+        <div class="rounded-xl border p-5" style="background: var(--bg-raised);">
+          <h2 class="text-sm font-semibold">Credentials</h2>
+          <ul class="mt-3 grid gap-2 text-sm" style="color: var(--fg-muted);">
+            <li>Red Hat Certified Engineer</li>
+            <li>Generative AI with Large Language Models</li>
+            <li>BE Computer Engineering, 2017</li>
+          </ul>
+        </div>
+
+        <div class="rounded-xl border p-5" style="background: var(--bg-raised);">
+          <h2 class="text-sm font-semibold">Published packages</h2>
+          <ul class="mt-3 grid gap-4 text-sm">
+            {
+              packages.map((p) => (
+                <li>
+                  <a
+                    href={p.url}
+                    target="_blank"
+                    rel="noopener"
+                    class="font-mono font-medium underline decoration-1 underline-offset-2"
+                  >
+                    {p.name}
+                  </a>
+                  <span class="mt-0.5 block text-[13px]" style="color: var(--fg-muted);">
+                    {p.detail}
+                  </span>
+                  <code
+                    class="scroll-x mt-1.5 block rounded-md border px-2.5 py-1.5 font-mono text-[12px]"
+                    style="background: var(--bg); color: var(--fg-muted);"
+                  >
+                    {p.install}
+                  </code>
+                </li>
+              ))
+            }
+          </ul>
+        </div>
+
+        <div class="rounded-xl border p-5" style="background: var(--bg-raised);">
+          <h2 class="text-sm font-semibold">Elsewhere</h2>
+          <ul class="mt-3 grid gap-2 text-sm">
+            <li>
+              <a href={PROFILES.linkedin} target="_blank" rel="me noopener" class="underline decoration-1 underline-offset-2" style="color: var(--fg-muted);">LinkedIn</a>
+            </li>
+            <li>
+              <a href={PROFILES.github} target="_blank" rel="me noopener" class="underline decoration-1 underline-offset-2" style="color: var(--fg-muted);">GitHub</a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Numbers ──────────────────────────────────────────────────────── -->
+  <section class="border-y py-10" style="background: var(--bg-raised);">
+    <div class="container-page">
+      <h2 class="text-xs font-semibold uppercase tracking-[0.14em]" style="color: var(--accent);">
+        The specifics
+      </h2>
+      <dl class="mt-6 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+        {
+          PROOF.map((p) => (
+            <div>
+              <dd class="flex items-baseline gap-1 font-semibold tracking-tight">
+                <span class="text-h2 tabular-nums">{p.value.toLocaleString('en-US')}</span>
+                <span class="text-h3" style="color: var(--accent);">{p.unit}</span>
+              </dd>
+              <dt class="mt-1 text-sm font-medium">{p.suffix}</dt>
+              <p class="mt-1.5 text-[13px] leading-relaxed" style="color: var(--fg-subtle);">
+                {p.detail}
+              </p>
+            </div>
+          ))
+        }
+      </dl>
+    </div>
+  </section>
+
+  <!-- ── Now ──────────────────────────────────────────────────────────── -->
+  <section class="container-page py-14">
+    <div class="grid gap-8 lg:grid-cols-[auto_1fr] lg:gap-14">
+      <div>
+        <h2 class="text-h2 font-semibold">What I'm doing now</h2>
+        <p class="mt-2 font-mono text-[13px]" style="color: var(--fg-subtle);">
+          Updated{' '}
+          <time datetime={NOW.updated}>
+            {new Date(NOW.updated).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+          </time>
+        </p>
+      </div>
+      <ul class="grid gap-3">
+        {
+          NOW.items.map((item, i) => (
+            <li
+              class="flex gap-4 rounded-xl border p-4"
+              style="background: var(--bg-raised);"
+              data-reveal
+              data-reveal-delay={i * 50}
+            >
+              <span
+                class="mt-0.5 grid size-5 shrink-0 place-items-center rounded font-mono text-[10px] font-bold"
+                style="background: var(--accent-soft); color: var(--accent);"
+              >
+                {i + 1}
+              </span>
+              <span class="text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+                {item}
+              </span>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+  </section>
+
+  <!-- ── How I work — moved up: a top concern for remote buyers ───────── -->
+  <section class="container-page border-t py-14">
+    <h2 class="text-h2 font-semibold">How I work</h2>
+    <p class="text-lead mt-4 max-w-2xl" style="color: var(--fg-muted);">
+      Worth reading before you hire anyone remote. These are commitments, not preferences.
+    </p>
+
+    <div class="mt-10 grid gap-4 md:grid-cols-2">
+      {
+        workingStyle.map((w, i) => (
+          <article class="rounded-2xl border p-6" style="background: var(--bg-raised);" data-reveal data-reveal-delay={i * 60}>
+            <h3 class="text-h3 font-semibold leading-snug">{w.title}</h3>
+            <p class="mt-2.5 text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+              {w.body}
+            </p>
+          </article>
+        ))
+      }
+    </div>
+  </section>
+
+  <!-- ── Verification / testimonials ──────────────────────────────────── -->
+  <section class="container-page border-t py-14">
+    <h2 class="text-h2 font-semibold">Don't take my word for it</h2>
+    <div class="mt-8">
+      <Testimonials />
+    </div>
+  </section>
+
+  <!-- ── Timeline ─────────────────────────────────────────────────────── -->
+  <section class="container-page border-t py-14">
+    <h2 class="text-h2 font-semibold">Where I have worked</h2>
+    <ol class="mt-10 grid gap-4">
+      {
+        timeline.map((t, i) => (
+          <li
+            class="grid gap-3 rounded-2xl border p-6 sm:grid-cols-[200px_1fr] sm:gap-8"
+            style="background: var(--bg-raised);"
+            data-reveal
+            data-reveal-delay={i * 60}
+          >
+            <div>
+              <p class="font-mono text-[13px]" style="color: var(--fg-subtle);">{t.period}</p>
+              <p class="mt-1 font-semibold">{t.role}</p>
+              <p class="text-sm" style="color: var(--fg-muted);">{t.org}</p>
+            </div>
+            <p class="text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+              {t.body}
+            </p>
+          </li>
+        ))
+      }
+    </ol>
+  </section>
+
+  <!-- ── Other work ───────────────────────────────────────────────────── -->
+  <section class="container-page border-t py-14">
+    <h2 class="text-h2 font-semibold">Other things I have built</h2>
+    <p class="text-lead mt-4 max-w-2xl" style="color: var(--fg-muted);">
+      Not written up as case studies, but real and shipped. Happy to talk about any of them.
+    </p>
+
+    <div class="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      {
+        alsoBuilt.map((p, i) => (
+          <article
+            class="flex flex-col rounded-2xl border p-6"
+            style="background: var(--bg-raised);"
+            data-reveal
+            data-reveal-delay={i * 50}
+          >
+            <h3 class="text-[16px] font-semibold leading-snug">{p.name}</h3>
+            <p class="mt-2 flex-1 text-sm leading-relaxed" style="color: var(--fg-muted);">
+              {p.detail}
+            </p>
+            <p class="mt-4 flex flex-wrap gap-1.5">
+              {p.tech.map((t) => (
+                <span class="rounded-md border px-1.5 py-0.5 font-mono text-[10px]" style="color: var(--fg-subtle);">
+                  {t}
+                </span>
+              ))}
+            </p>
+            {p.industry && (
+              <a
+                href={href(`/industries/${p.industry}`)}
+                class="mt-3 inline-flex items-center gap-1.5 text-[13px] font-semibold"
+                style="color: var(--accent);"
+              >
+                What makes this domain hard
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="size-3" aria-hidden="true">
+                  <path d="M5 12h14M13 6l6 6-6 6" />
+                </svg>
+              </a>
+            )}
+          </article>
+        ))
+      }
+    </div>
+
+    <div class="mt-10 flex flex-wrap gap-6">
+      <a href={href('/work')} class="inline-flex items-center gap-2 text-[15px] font-semibold" style="color: var(--accent);">
+        The three written-up case studies
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="size-4" aria-hidden="true">
+          <path d="M5 12h14M13 6l6 6-6 6" />
+        </svg>
+      </a>
+      <a href={href('/solutions')} class="inline-flex items-center gap-2 text-[15px] font-semibold" style="color: var(--accent);">
+        What I get hired to do
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="size-4" aria-hidden="true">
+          <path d="M5 12h14M13 6l6 6-6 6" />
+        </svg>
+      </a>
+    </div>
+  </section>
+
+  <!-- ── Close ────────────────────────────────────────────────────────── -->
+  <section class="pb-8">
+    <div class="container-page">
+      <div class="rounded-3xl border p-8 sm:p-12" style="background: var(--bg-raised); box-shadow: var(--shadow-card);">
+        <div class="grid gap-8 lg:grid-cols-[1.4fr_1fr] lg:items-center">
+          <div>
+            <h2 class="text-h2 font-semibold" style="text-wrap: balance;">
+              Want to talk?
+            </h2>
+            <p class="mt-4 max-w-xl text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+              About an agent that is misbehaving, a role you think fits, or a system you would like
+              a second opinion on. I answer specific questions about specific systems for free.
+            </p>
+            <div class="mt-8">
+              <CtaRow source="about-close" intent="general" primaryLabel="Message me" />
+            </div>
+          </div>
+          <div class="rounded-2xl border p-6" style="background: var(--bg);">
+            <p class="text-sm font-semibold">Hiring rather than contracting?</p>
+            <p class="mt-2 text-sm leading-relaxed" style="color: var(--fg-muted);">
+              I will listen to the right role. Send the company, the role and the comp range and I
+              will be straight with you either way.
+            </p>
+            {
+              cvExists && (
+                <a
+                  href={href(CV.path)}
+                  download
+                  data-analytics="about-cv-download-footer"
+                  class="mt-5 inline-flex items-center gap-2 text-sm font-semibold"
+                  style="color: var(--accent);"
+                >
+                  Download my CV
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="size-3.5" aria-hidden="true">
+                    <path d="M12 3v12m0 0-4-4m4 4 4-4M4 19h16" />
+                  </svg>
+                </a>
+              )
+            }
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</Base>

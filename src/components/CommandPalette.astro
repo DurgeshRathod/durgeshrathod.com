@@ -1,0 +1,302 @@
+---
+import taxonomy from '../data/taxonomy.json';
+import scorecard from '../data/scorecard.json';
+import solutions from '../data/solutions.json';
+import industries from '../data/industries.json';
+import decisions from '../data/decisions.json';
+import { NAV, NAV_SECONDARY, OFFERS, CONTACT } from '../consts.ts';
+import { href } from '../lib/paths.ts';
+import { waLink, WA_MESSAGES } from '../lib/whatsapp.ts';
+
+/*
+  ⌘K palette. The index is built at build time and inlined as JSON, so there is no
+  fetch, no search service, and it works under any base path. Every failure-taxonomy
+  symptom is indexed by its alternate phrasings too, which makes the palette genuinely
+  useful rather than decorative.
+*/
+
+type Entry = {
+  t: string; // title
+  u: string; // url
+  k: string; // kind label
+  d?: string; // description
+  x?: string; // extra keywords
+  e?: 1; // external
+};
+
+const entries: Entry[] = [
+  { t: 'Home', u: href('/'), k: 'Page' },
+  ...NAV.map((n) => ({ t: n.label, u: href(n.href), k: 'Page' })),
+  ...NAV_SECONDARY.map((n) => ({ t: n.label, u: href(n.href), k: 'Page' })),
+  {
+    t: 'Work with me — rates and engagements',
+    u: href('/work-with-me'),
+    k: 'Page',
+    x: 'pricing rates hire consulting audit retainer cost',
+  },
+  {
+    t: 'Agent Production Readiness Scorecard',
+    u: href('/scorecard'),
+    k: 'Tool',
+    d: `${scorecard.questions.length} questions, about ${scorecard.meta.estimatedMinutes} minutes`,
+    x: 'assessment quiz score evaluate readiness',
+  },
+  {
+    t: 'Agent Cost Calculator',
+    u: href('/tools/agent-cost-calculator'),
+    k: 'Tool',
+    d: 'Model your monthly LLM spend and find what is recoverable',
+    x: 'pricing tokens budget spend forecast cost per conversation',
+  },
+  {
+    t: 'AI Agent Failure Taxonomy',
+    u: href('/tools/failure-taxonomy'),
+    k: 'Tool',
+    d: `${taxonomy.symptoms.length} named failure modes with causes and fixes`,
+    x: 'debug troubleshoot broken errors symptoms',
+  },
+  ...OFFERS.map((o) => ({
+    t: o.name,
+    u: `${href('/work-with-me')}#${o.id}`,
+    k: 'Engagement',
+    d: o.priceLabel,
+    x: 'hire price cost engage',
+  })),
+  ...solutions.solutions.map((s) => ({
+    t: s.name,
+    u: href(`/solutions/${s.slug}`),
+    k: 'Solution',
+    d: s.tagline,
+    x: `${s.keywords.join(' ')} ${s.domains.join(' ')}`,
+  })),
+  ...decisions.decisions.map((d) => ({
+    t: d.name,
+    u: href(`/for-leaders/${d.slug}`),
+    k: 'For leaders',
+    d: d.tagline,
+    x: `${d.keywords.join(' ')} ${d.audience.join(' ')} leadership budget decision`,
+  })),
+  ...industries.industries.map((x) => ({
+    t: x.name,
+    u: href(`/industries/${x.slug}`),
+    k: 'Industry',
+    d: x.h1,
+    x: `${x.keywords.join(' ')} ${x.systems.join(' ')} ${x.whoIHelp.join(' ')}`,
+  })),
+  ...taxonomy.symptoms.map((s) => ({
+    t: s.symptom,
+    u: `${href('/tools/failure-taxonomy')}#${s.slug}`,
+    k: 'Failure mode',
+    d: `${s.severity} · ${s.frequency}`,
+    x: s.aka.join(' '),
+  })),
+  {
+    t: 'Message on WhatsApp',
+    u: waLink(WA_MESSAGES.general),
+    k: 'Contact',
+    x: 'chat talk call reach',
+    e: 1,
+  },
+  { t: `Email ${CONTACT.email}`, u: `mailto:${CONTACT.email}`, k: 'Contact', x: 'mail write', e: 1 },
+];
+---
+
+<script type="application/json" id="cmdk-index" set:html={JSON.stringify(entries)} is:inline />
+
+<div
+  data-cmdk
+  hidden
+  class="fixed inset-0 z-50 flex items-start justify-center p-4 pt-[12vh]"
+  role="dialog"
+  aria-modal="true"
+  aria-label="Search"
+>
+  <div data-cmdk-backdrop class="absolute inset-0 backdrop-blur-sm" style="background: rgb(0 0 0 / 0.45);"></div>
+
+  <div
+    class="relative w-full max-w-xl overflow-hidden rounded-2xl border shadow-2xl"
+    style="background: var(--bg-raised); box-shadow: var(--shadow-card);"
+  >
+    <div class="flex items-center gap-3 border-b px-4">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-4 shrink-0" style="color: var(--fg-subtle);" aria-hidden="true">
+        <circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path>
+      </svg>
+      <input
+        data-cmdk-input
+        type="text"
+        placeholder="Search pages, tools, failure modes…"
+        autocomplete="off"
+        spellcheck="false"
+        aria-label="Search"
+        class="w-full bg-transparent py-4 text-[15px] outline-none"
+        style="color: var(--fg);"
+      />
+      <kbd class="shrink-0 rounded border px-1.5 py-0.5 font-mono text-[11px]" style="color: var(--fg-subtle);">esc</kbd>
+    </div>
+
+    <ul data-cmdk-results role="listbox" class="max-h-[52vh] overflow-y-auto p-2 text-sm"></ul>
+
+    <p data-cmdk-empty hidden class="px-4 py-8 text-center text-sm" style="color: var(--fg-subtle);">
+      Nothing matched. Try “cost”, “loop”, “evals”, or “rates”.
+    </p>
+  </div>
+</div>
+
+<script is:inline>
+  (function () {
+    var root = document.querySelector('[data-cmdk]');
+    var indexEl = document.getElementById('cmdk-index');
+    if (!root || !indexEl) return;
+
+    var DATA = JSON.parse(indexEl.textContent || '[]');
+    var input = root.querySelector('[data-cmdk-input]');
+    var list = root.querySelector('[data-cmdk-results]');
+    var empty = root.querySelector('[data-cmdk-empty]');
+    var active = 0;
+    var results = [];
+    var lastFocus = null;
+
+    function score(entry, q) {
+      var hay = (entry.t + ' ' + (entry.d || '') + ' ' + (entry.x || '') + ' ' + entry.k).toLowerCase();
+      var title = entry.t.toLowerCase();
+      if (!q) return 1;
+      var terms = q.split(/\s+/).filter(Boolean);
+      var s = 0;
+      for (var i = 0; i < terms.length; i++) {
+        var t = terms[i];
+        if (title.startsWith(t)) s += 6;
+        else if (title.indexOf(t) > -1) s += 4;
+        else if (hay.indexOf(t) > -1) s += 2;
+        else return 0; // every term must match somewhere
+      }
+      return s;
+    }
+
+    function render() {
+      var q = input.value.trim().toLowerCase();
+      results = DATA.map(function (e) {
+        return { e: e, s: score(e, q) };
+      })
+        .filter(function (r) {
+          return r.s > 0;
+        })
+        .sort(function (a, b) {
+          return b.s - a.s;
+        })
+        .slice(0, 12)
+        .map(function (r) {
+          return r.e;
+        });
+
+      active = 0;
+      list.innerHTML = '';
+      empty.hidden = results.length > 0;
+
+      results.forEach(function (e, i) {
+        var li = document.createElement('li');
+        li.setAttribute('role', 'option');
+        var a = document.createElement('a');
+        a.href = e.u;
+        if (e.e) {
+          a.target = '_blank';
+          a.rel = 'noopener';
+        }
+        a.className = 'flex items-start gap-3 rounded-lg px-3 py-2.5 transition-colors';
+        a.dataset.idx = String(i);
+
+        var main = document.createElement('span');
+        main.className = 'min-w-0 flex-1';
+        var title = document.createElement('span');
+        title.className = 'block truncate font-medium';
+        title.textContent = e.t;
+        main.appendChild(title);
+        if (e.d) {
+          var desc = document.createElement('span');
+          desc.className = 'mt-0.5 block truncate text-xs';
+          desc.style.color = 'var(--fg-subtle)';
+          desc.textContent = e.d;
+          main.appendChild(desc);
+        }
+
+        var kind = document.createElement('span');
+        kind.className = 'shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide';
+        kind.style.color = 'var(--fg-subtle)';
+        kind.textContent = e.k;
+
+        a.appendChild(main);
+        a.appendChild(kind);
+        li.appendChild(a);
+        list.appendChild(li);
+      });
+
+      paint();
+    }
+
+    function paint() {
+      list.querySelectorAll('a').forEach(function (a, i) {
+        var on = i === active;
+        a.style.background = on ? 'var(--bg-sunken)' : 'transparent';
+        a.setAttribute('aria-selected', String(on));
+        if (on) a.scrollIntoView({ block: 'nearest' });
+      });
+    }
+
+    function open() {
+      lastFocus = document.activeElement;
+      root.removeAttribute('hidden');
+      document.body.style.overflow = 'hidden';
+      input.value = '';
+      render();
+      input.focus();
+    }
+
+    function close() {
+      root.setAttribute('hidden', '');
+      document.body.style.overflow = '';
+      if (lastFocus && lastFocus.focus) lastFocus.focus();
+    }
+
+    document.querySelectorAll('[data-cmdk-open]').forEach(function (b) {
+      b.addEventListener('click', open);
+    });
+
+    root.querySelector('[data-cmdk-backdrop]').addEventListener('click', close);
+    input.addEventListener('input', render);
+
+    document.addEventListener('keydown', function (ev) {
+      var isOpen = !root.hasAttribute('hidden');
+      if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === 'k') {
+        ev.preventDefault();
+        isOpen ? close() : open();
+        return;
+      }
+      if (!isOpen) {
+        // '/' opens search, unless the visitor is typing in a field.
+        var tag = (document.activeElement && document.activeElement.tagName) || '';
+        if (ev.key === '/' && !/INPUT|TEXTAREA|SELECT/.test(tag)) {
+          ev.preventDefault();
+          open();
+        }
+        return;
+      }
+      if (ev.key === 'Escape') {
+        ev.preventDefault();
+        close();
+      } else if (ev.key === 'ArrowDown') {
+        ev.preventDefault();
+        active = Math.min(active + 1, results.length - 1);
+        paint();
+      } else if (ev.key === 'ArrowUp') {
+        ev.preventDefault();
+        active = Math.max(active - 1, 0);
+        paint();
+      } else if (ev.key === 'Enter') {
+        var a = list.querySelectorAll('a')[active];
+        if (a) {
+          ev.preventDefault();
+          a.click();
+        }
+      }
+    });
+  })();
+</script>

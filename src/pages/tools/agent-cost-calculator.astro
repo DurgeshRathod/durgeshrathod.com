@@ -1,0 +1,838 @@
+---
+import Base from '../../layouts/Base.astro';
+import CtaRow from '../../components/CtaRow.astro';
+import Faq from '../../components/Faq.astro';
+import models from '../../data/models.json';
+import { SITE } from '../../consts.ts';
+import { href } from '../../lib/paths.ts';
+import { WA_BASE } from '../../lib/whatsapp.ts';
+import { toolSchema, faqSchema, breadcrumbSchema, type QA } from '../../lib/seo.ts';
+
+const { meta, models: MODELS, presets } = models;
+
+const faqs: QA[] = [
+  {
+    q: 'How do you calculate the cost of an AI agent?',
+    a: 'Multiply the number of billed API calls by the cost of the tokens in each call. Calls equal conversations × turns per conversation × (1 + retry rate). Tokens per call are the prompt, the conversation history, any retrieved context, and — the part usually forgotten — your tool definitions, which are billed on every single call whether the tools are used or not.\n\nThen split input tokens between cached and uncached, because a cache read costs roughly a tenth of standard input, and apply the output token price separately since output is typically 5× the input price.',
+  },
+  {
+    q: 'Why is my LLM bill higher than my own estimate?',
+    a: 'Four causes account for most of the gap, in rough order of frequency: conversation history resent in full on every turn so per-turn cost grows with conversation length; tool definitions billed on every call; retries that nothing is counting; and newer models that produce more tokens for the same text because their tokenizer changed.\n\nThe last one is genuinely invisible if you compare only headline $/MTok. Claude Opus 4.7 and later produce roughly 30% more tokens for identical text than Claude Sonnet 4.6 and earlier, so equal prices per token do not mean equal cost per word.',
+  },
+  {
+    q: 'What is the fastest way to cut agent costs without hurting quality?',
+    a: 'Route by task difficulty. Classification, extraction, routing and formatting rarely need a frontier model, and moving those sub-tasks to a cheap model typically recovers 40–70% of spend with no measurable quality loss — provided you have an eval suite to verify that claim rather than assume it.\n\nAfter that: cache stable prompt prefixes, bound conversation history explicitly, and trim tool definitions. Batch processing gives a further 50% on anything that is not latency-sensitive.',
+  },
+  {
+    q: 'Does prompt caching always save money?',
+    a: 'No. A cache write costs more than ordinary input — 1.25× base for the 5-minute tier and 2× for the 1-hour tier — while a read costs 0.1×. Caching only pays off once the content is actually re-read: after one read for the 5-minute tier, two for the 1-hour tier.\n\nCaching a prompt prefix that is never reused makes it more expensive. Cache the system prompt and tool definitions; do not reflexively cache everything.',
+  },
+  {
+    q: 'How accurate is this calculator?',
+    a: `It is a planning model, not an invoice. Provider prices are verified as of ${meta.updated} and the arithmetic is exact, but your real cost depends on your actual token distribution, which no calculator can know.\n\nUse it to size decisions — is this feature viable, is routing worth doing, what happens at 10× volume — and then measure real cost per conversation in production, which is the number that actually matters.`,
+  },
+];
+
+const schema = [
+  toolSchema({
+    name: 'AI Agent Cost Calculator',
+    description:
+      'Model the monthly cost of an LLM agent from conversation volume, token counts, retry rate and cache hit rate. Includes tool-definition overhead and tokenizer differences that most calculators omit.',
+    path: '/tools/agent-cost-calculator',
+  }),
+  faqSchema(faqs),
+  breadcrumbSchema([
+    { name: 'Home', path: '/' },
+    { name: 'Tools', path: '/tools' },
+    { name: 'Agent Cost Calculator', path: '/tools/agent-cost-calculator' },
+  ]),
+];
+---
+
+<Base
+  title="AI Agent Cost Calculator — what your LLM agent really costs per month"
+  description="Model monthly LLM agent spend from volume, tokens, retries and cache hits. Accounts for tool-definition tokens billed on every call and tokenizer differences between model generations. Provider pricing verified August 2026."
+  path="/tools/agent-cost-calculator"
+  schema={schema}
+  published="2026-08-02"
+>
+  <script type="application/json" id="calc-data" set:html={JSON.stringify(models)} is:inline />
+  <script type="application/json" id="wa-config" set:html={JSON.stringify({ base: WA_BASE, site: SITE.url })} is:inline />
+
+  <section class="container-page pt-14 pb-8">
+    <nav aria-label="Breadcrumb" class="text-sm" style="color: var(--fg-subtle);">
+      <a href={href('/')} class="hover:underline">Home</a>
+      <span class="mx-1.5" aria-hidden="true">/</span>
+      <a href={href('/tools')} class="hover:underline">Tools</a>
+      <span class="mx-1.5" aria-hidden="true">/</span>
+      <span style="color: var(--fg-muted);">Cost calculator</span>
+    </nav>
+
+    <p class="mt-8 text-xs font-semibold uppercase tracking-[0.14em]" style="color: var(--accent);">
+      Free tool · pricing verified {meta.updated}
+    </p>
+    <h1 class="text-h1 mt-3 max-w-3xl font-semibold" style="text-wrap: balance;">
+      What will your AI agent actually cost per month?
+    </h1>
+    <p class="text-lead mt-5 max-w-2xl" style="color: var(--fg-muted);">
+      Most cost estimates are wrong in the same three ways: they forget that tool definitions are
+      billed on every call, they ignore retries, and they compare headline token prices between
+      models whose tokenizers disagree about what a token is. This one accounts for all three.
+    </p>
+  </section>
+
+  <!-- ── Calculator ───────────────────────────────────────────────────── -->
+  <section class="container-page pb-12">
+    <div class="grid gap-6 lg:grid-cols-[minmax(0,380px)_1fr] lg:items-start">
+      <!-- Inputs -->
+      <!-- min-w-0 is load-bearing: a <select> sizes to its widest <option>, and a grid
+           item's default min-width:auto would let that intrinsic width push the whole
+           column past the viewport on narrow screens. -->
+      <div class="min-w-0 rounded-2xl border p-6" style="background: var(--bg-raised);">
+        <h2 class="text-h3 font-semibold">Your workload</h2>
+
+        <label class="mt-5 grid min-w-0 gap-1.5">
+          <span class="text-sm font-medium">Start from a preset</span>
+          <select
+            data-preset
+            class="w-full min-w-0 truncate rounded-lg border px-3 py-2.5 text-[15px] outline-none"
+            style="background: var(--bg); color: var(--fg);"
+          >
+            {presets.map((p) => <option value={p.id}>{p.name}</option>)}
+            <option value="custom">Custom</option>
+          </select>
+          <span data-preset-desc class="text-[13px] leading-relaxed" style="color: var(--fg-subtle);"></span>
+        </label>
+
+        <label class="mt-5 grid min-w-0 gap-1.5">
+          <span class="text-sm font-medium">Model</span>
+          <select
+            data-model
+            class="w-full min-w-0 truncate rounded-lg border px-3 py-2.5 text-[15px] outline-none"
+            style="background: var(--bg); color: var(--fg);"
+          >
+            {
+              MODELS.map((m) => (
+                <option value={m.id}>
+                  {m.name} — ${m.inputPerM}/${m.outputPerM} per MTok
+                </option>
+              ))
+            }
+          </select>
+          <span data-model-note class="text-[13px] leading-relaxed" style="color: var(--warn);"></span>
+        </label>
+
+        <div class="mt-6 grid gap-5">
+          {
+            [
+              { key: 'conversationsPerMonth', label: 'Conversations per month', min: 100, max: 500000, step: 100 },
+              { key: 'turnsPerConversation', label: 'Turns per conversation', min: 1, max: 60, step: 1 },
+              { key: 'inputTokensPerTurn', label: 'Input tokens per turn', min: 200, max: 60000, step: 100, hint: 'Prompt + history + retrieved context' },
+              { key: 'outputTokensPerTurn', label: 'Output tokens per turn', min: 50, max: 8000, step: 50 },
+              { key: 'toolDefinitionTokens', label: 'Tool definition tokens', min: 0, max: 6000, step: 100, hint: 'Billed on every call, used or not' },
+              { key: 'retryRate', label: 'Retry rate', min: 0, max: 50, step: 1, unit: '%' },
+              { key: 'cacheHitRate', label: 'Cache hit rate on input', min: 0, max: 95, step: 5, unit: '%' },
+            ].map((f) => (
+              <div>
+                <div class="flex items-baseline justify-between gap-3">
+                  <label for={`f-${f.key}`} class="text-sm font-medium">
+                    {f.label}
+                  </label>
+                  <output
+                    data-out={f.key}
+                    class="font-mono text-sm font-semibold tabular-nums"
+                    style="color: var(--accent);"
+                  />
+                </div>
+                <input
+                  id={`f-${f.key}`}
+                  type="range"
+                  data-field={f.key}
+                  data-unit={f.unit ?? ''}
+                  min={f.min}
+                  max={f.max}
+                  step={f.step}
+                  class="mt-2 w-full"
+                  style="accent-color: var(--accent);"
+                />
+                {f.hint && (
+                  <p class="mt-1 text-[12px]" style="color: var(--fg-subtle);">
+                    {f.hint}
+                  </p>
+                )}
+              </div>
+            ))
+          }
+        </div>
+
+        <label class="mt-6 flex items-start gap-2.5 text-sm">
+          <input type="checkbox" data-batch class="mt-0.5 size-4" style="accent-color: var(--accent);" />
+          <span>
+            Batch-friendly workload
+            <span class="block text-[13px]" style="color: var(--fg-subtle);">
+              Not latency-sensitive — applies the 50% batch discount.
+            </span>
+          </span>
+        </label>
+      </div>
+
+      <!-- Outputs -->
+      <div class="grid min-w-0 gap-5">
+        <div class="min-w-0 rounded-2xl border p-7" style="background: var(--bg-raised); box-shadow: var(--shadow-card);">
+          <div class="flex flex-wrap items-end justify-between gap-6">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-wider" style="color: var(--fg-subtle);">
+                Estimated monthly spend
+              </p>
+              <p class="mt-2 font-semibold tabular-nums" style="font-size: clamp(2.5rem, 6vw, 3.75rem); line-height: 1;">
+                <span data-out-monthly>—</span>
+              </p>
+              <p class="mt-2 text-sm" style="color: var(--fg-muted);">
+                <span data-out-annual>—</span> per year at this volume
+              </p>
+            </div>
+            <dl class="grid gap-3 text-sm">
+              <div class="flex items-baseline gap-3">
+                <dt style="color: var(--fg-subtle);">Per conversation</dt>
+                <dd class="font-mono font-semibold tabular-nums" data-out-per-conv>—</dd>
+              </div>
+              <div class="flex items-baseline gap-3">
+                <dt style="color: var(--fg-subtle);">Billed API calls / month</dt>
+                <dd class="font-mono font-semibold tabular-nums" data-out-calls>—</dd>
+              </div>
+              <div class="flex items-baseline gap-3">
+                <dt style="color: var(--fg-subtle);">Tokens / month</dt>
+                <dd class="font-mono font-semibold tabular-nums" data-out-tokens>—</dd>
+              </div>
+            </dl>
+          </div>
+
+          <!-- Cost composition -->
+          <h3 class="mt-8 text-sm font-semibold">Where the money goes</h3>
+          <!--
+            Segment fills use the validated categorical slots, not the status colours —
+            good/warn/risk stay reserved for state. The 2px gap is a surface spacer so
+            adjacent fills read as separate segments rather than one blended band.
+          -->
+          <div
+            class="mt-3 flex h-3 gap-[2px] overflow-hidden rounded-full"
+            style="background: var(--bg-sunken);"
+            data-bar-track
+          >
+            <div data-seg="output" class="h-full transition-all duration-500" style="background: var(--chart-1); width: 0;"></div>
+            <div data-seg="cached" class="h-full transition-all duration-500" style="background: var(--chart-2); width: 0;"></div>
+            <div data-seg="input" class="h-full transition-all duration-500" style="background: var(--chart-3); width: 0;"></div>
+            <div data-seg="tools" class="h-full transition-all duration-500" style="background: var(--chart-4); width: 0;"></div>
+          </div>
+          <dl class="mt-4 grid gap-2.5 text-sm sm:grid-cols-2">
+            {
+              [
+                { k: 'output', label: 'Output tokens', color: 'var(--chart-1)' },
+                { k: 'cached', label: 'Cached input', color: 'var(--chart-2)' },
+                { k: 'input', label: 'Uncached input', color: 'var(--chart-3)' },
+                { k: 'tools', label: 'Tool definitions', color: 'var(--chart-4)' },
+              ].map((s) => (
+                <div class="flex items-baseline justify-between gap-3">
+                  <dt class="flex items-center gap-2" style="color: var(--fg-muted);">
+                    <span class="size-2.5 shrink-0 rounded-sm" style={`background: ${s.color}`} aria-hidden="true" />
+                    {s.label}
+                  </dt>
+                  <dd class="font-mono tabular-nums" data-cost={s.k}>—</dd>
+                </div>
+              ))
+            }
+          </dl>
+
+          <p class="mt-5 rounded-lg border-l-2 pl-3.5 text-sm leading-relaxed" style="border-color: var(--risk); color: var(--fg-muted);">
+            <strong style="color: var(--risk);">Lost to retries: <span data-out-retry-waste>—</span>/month.</strong>{' '}
+            <span data-retry-note></span>
+          </p>
+        </div>
+
+        <!-- What-if scenarios -->
+        <div class="min-w-0 rounded-2xl border p-7" style="background: var(--bg-raised);">
+          <h3 class="text-h3 font-semibold">What would actually help</h3>
+          <p class="mt-2 text-sm leading-relaxed" style="color: var(--fg-muted);">
+            Each of these is computed against your numbers above, in the order I would normally
+            attempt them. Every one assumes you have evals to verify quality did not move — without
+            that, these are guesses rather than optimisations.
+          </p>
+          <ul class="mt-5 grid gap-3" data-scenarios></ul>
+        </div>
+
+        <!-- Model comparison -->
+        <div class="min-w-0 rounded-2xl border p-7" style="background: var(--bg-raised);">
+          <h3 class="text-h3 font-semibold">Same workload, every model</h3>
+          <p class="mt-2 text-sm leading-relaxed" style="color: var(--fg-muted);">
+            This is the table that usually ends the debate about whether routing is worth the
+            engineering effort.
+          </p>
+          <div class="scroll-x mt-5">
+            <table class="w-full min-w-[560px] text-sm">
+              <thead>
+                <tr class="border-b text-left">
+                  <th class="px-2 py-2.5 font-semibold">Model</th>
+                  <th class="px-2 py-2.5 text-right font-semibold">$/month</th>
+                  <th class="px-2 py-2.5 text-right font-semibold">Per conv.</th>
+                  <th class="px-2 py-2.5 text-right font-semibold">vs selected</th>
+                </tr>
+              </thead>
+              <tbody data-compare></tbody>
+            </table>
+          </div>
+          <p class="mt-4 text-[13px] leading-relaxed" style="color: var(--fg-subtle);">
+            Token multipliers are applied, so this compares cost for the same <em>text</em>, not
+            the same token count. That is why two models with identical headline prices can differ
+            here.
+          </p>
+        </div>
+
+        <!-- Handoff -->
+        <div class="min-w-0 rounded-2xl border p-7" style="background: var(--bg-raised);">
+          <h3 class="text-h3 font-semibold">Think this number is too high?</h3>
+          <p class="mt-2 max-w-2xl text-sm leading-relaxed" style="color: var(--fg-muted);">
+            Send me the scenario and I will tell you which lever I would pull first. The message is
+            composed in your browser and pre-filled with your figures.
+          </p>
+          <div class="mt-5">
+            <a
+              data-wa-send
+              href="#"
+              target="_blank"
+              rel="noopener"
+              data-analytics="calculator-whatsapp"
+              class="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-[15px] font-semibold transition-all hover:opacity-90 active:scale-[0.98]"
+              style="background: var(--accent-solid); color: var(--accent-solid-fg);"
+            >
+              Send these numbers on WhatsApp
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Caveats: the citable content, all static HTML ────────────────── -->
+  <section class="container-page border-t py-14">
+    <h2 class="text-h2 font-semibold" style="text-wrap: balance;">
+      Four cost factors most calculators leave out
+    </h2>
+    <p class="text-lead mt-4 max-w-2xl" style="color: var(--fg-muted);">
+      These are the reasons a careful estimate still comes in under the invoice.
+    </p>
+
+    <div class="mt-10 grid gap-5 md:grid-cols-2">
+      {
+        meta.caveats.map((c, i) => (
+          <article id={c.id} class="rounded-2xl border p-6" style="background: var(--bg-raised);" data-reveal data-reveal-delay={i * 60}>
+            <span class="font-mono text-xs font-bold" style="color: var(--accent);">
+              {String(i + 1).padStart(2, '0')}
+            </span>
+            <h3 class="text-h3 mt-2.5 font-semibold leading-snug">{c.title}</h3>
+            <p class="mt-3 text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+              {c.body}
+            </p>
+          </article>
+        ))
+      }
+    </div>
+
+    <div class="mt-8 rounded-xl border p-5" style="background: var(--bg-raised);">
+      <h3 class="text-sm font-semibold">Pricing sources</h3>
+      <ul class="mt-2.5 grid gap-1.5 text-sm">
+        {
+          meta.sources.map((s) => (
+            <li>
+              <a
+                href={s.url}
+                target="_blank"
+                rel="noopener"
+                class="underline decoration-1 underline-offset-2"
+                style="color: var(--fg-muted);"
+              >
+                {s.name}
+              </a>
+              <span class="font-mono text-[13px]" style="color: var(--fg-subtle);">
+                {' '}· verified {s.verified}
+              </span>
+            </li>
+          ))
+        }
+      </ul>
+      <p class="mt-3 text-[13px] leading-relaxed" style="color: var(--fg-subtle);">
+        {meta.note}
+      </p>
+    </div>
+  </section>
+
+  <!-- Static token-price reference table: crawlable, and the data behind the tool. -->
+  <section class="container-page border-t py-14">
+    <h2 class="text-h2 font-semibold">LLM pricing reference</h2>
+    <p class="mt-4 max-w-2xl text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+      All figures in USD {meta.unit}, verified {meta.updated}.
+    </p>
+    <div class="scroll-x mt-8">
+      <table class="w-full min-w-[720px] text-sm">
+        <caption class="sr-only">LLM token pricing per million tokens, verified {meta.updated}</caption>
+        <thead>
+          <tr class="border-b text-left">
+            <th class="px-3 py-2.5 font-semibold">Model</th>
+            <th class="px-3 py-2.5 font-semibold">Provider</th>
+            <th class="px-3 py-2.5 text-right font-semibold">Input</th>
+            <th class="px-3 py-2.5 text-right font-semibold">Cached</th>
+            <th class="px-3 py-2.5 text-right font-semibold">Output</th>
+            <th class="px-3 py-2.5 text-right font-semibold">Batch in/out</th>
+            <th class="px-3 py-2.5 text-right font-semibold">Context</th>
+          </tr>
+        </thead>
+        <tbody>
+          {
+            MODELS.map((m) => (
+              <tr class="border-b">
+                <th scope="row" class="px-3 py-3 text-left font-medium">
+                  {m.name}
+                  {m.notes && (
+                    <span class="mt-1 block text-[12px] font-normal leading-relaxed" style="color: var(--fg-subtle);">
+                      {m.notes}
+                    </span>
+                  )}
+                </th>
+                <td class="px-3 py-3" style="color: var(--fg-muted);">{m.provider}</td>
+                <td class="px-3 py-3 text-right font-mono tabular-nums">${m.inputPerM.toFixed(2)}</td>
+                <td class="px-3 py-3 text-right font-mono tabular-nums" style="color: var(--good);">
+                  ${m.cachedInputPerM.toFixed(3)}
+                </td>
+                <td class="px-3 py-3 text-right font-mono tabular-nums">${m.outputPerM.toFixed(2)}</td>
+                <td class="px-3 py-3 text-right font-mono tabular-nums" style="color: var(--fg-muted);">
+                  ${m.batchInputPerM.toFixed(2)} / ${m.batchOutputPerM.toFixed(2)}
+                </td>
+                <td class="px-3 py-3 text-right font-mono tabular-nums" style="color: var(--fg-muted);">
+                  {(m.contextWindow / 1000).toLocaleString('en-US')}k
+                </td>
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="container-page border-t py-14">
+    <h2 class="text-h2 font-semibold">Questions about agent cost</h2>
+    <div class="mt-8 max-w-3xl">
+      <Faq items={faqs} />
+    </div>
+
+    <div class="mt-12 rounded-2xl border p-7" style="background: var(--bg-raised);">
+      <h2 class="text-h3 font-semibold">Cost is usually a symptom</h2>
+      <p class="mt-2.5 max-w-2xl text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+        An agent that costs too much is normally an agent that retries too often, carries too much
+        context, or calls a frontier model for work a cheap one would do. Those are reliability
+        problems wearing a finance costume. The <a
+          href={href('/scorecard')}
+          class="font-medium underline decoration-1 underline-offset-4"
+          style="color: var(--fg);">readiness scorecard</a
+        > will tell you which one you have.
+      </p>
+      <div class="mt-6">
+        <CtaRow source="calculator-foot" intent="audit" primaryLabel="Talk about an audit" />
+      </div>
+    </div>
+  </section>
+</Base>
+
+<script is:inline>
+  (function () {
+    var dataEl = document.getElementById('calc-data');
+    var waEl = document.getElementById('wa-config');
+    if (!dataEl || !waEl) return;
+
+    var DATA = JSON.parse(dataEl.textContent);
+    var WA = JSON.parse(waEl.textContent);
+    var MODELS = DATA.models;
+    var PRESETS = DATA.presets;
+
+    var FIELDS = [
+      'conversationsPerMonth',
+      'turnsPerConversation',
+      'inputTokensPerTurn',
+      'outputTokensPerTurn',
+      'toolDefinitionTokens',
+      'retryRate',
+      'cacheHitRate',
+    ];
+
+    var presetSel = document.querySelector('[data-preset]');
+    var modelSel = document.querySelector('[data-model]');
+    var batchBox = document.querySelector('[data-batch]');
+
+    function usd(n) {
+      if (n >= 1000) return '$' + Math.round(n).toLocaleString('en-US');
+      if (n >= 10) return '$' + n.toFixed(2);
+      if (n >= 0.01) return '$' + n.toFixed(3);
+      return '$' + n.toFixed(5);
+    }
+
+    function compact(n) {
+      if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B';
+      if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+      if (n >= 1e3) return (n / 1e3).toFixed(1) + 'k';
+      return String(Math.round(n));
+    }
+
+    function getModel(id) {
+      for (var i = 0; i < MODELS.length; i++) if (MODELS[i].id === id) return MODELS[i];
+      return MODELS[0];
+    }
+
+    function readInputs() {
+      var v = {};
+      FIELDS.forEach(function (f) {
+        v[f] = Number(document.querySelector('[data-field="' + f + '"]').value);
+      });
+      return v;
+    }
+
+    /**
+     * Cost model.
+     *
+     * calls          = conversations x turns x (1 + retryRate)
+     * per-call input = (inputTokensPerTurn + toolDefinitionTokens) x tokenMultiplier
+     * input split    = cacheHitRate portion at the cached rate, remainder at base
+     * output         = outputTokensPerTurn x tokenMultiplier at the output rate
+     *
+     * tokenMultiplier normalises for tokenizer differences, so comparisons are
+     * per unit of text rather than per token.
+     */
+    function compute(v, model, batch) {
+      var mult = model.tokenMultiplier || 1;
+      var inRate = batch ? model.batchInputPerM : model.inputPerM;
+      var outRate = batch ? model.batchOutputPerM : model.outputPerM;
+      // Batch and caching do not stack cleanly across providers; use the base cached rate.
+      var cacheRate = model.cachedInputPerM;
+
+      var baseCalls = v.conversationsPerMonth * v.turnsPerConversation;
+      var retryCalls = baseCalls * (v.retryRate / 100);
+      var calls = baseCalls + retryCalls;
+
+      var promptTok = v.inputTokensPerTurn * mult;
+      var toolTok = v.toolDefinitionTokens * mult;
+      var outTok = v.outputTokensPerTurn * mult;
+
+      var hit = v.cacheHitRate / 100;
+
+      // Tool definitions are stable text, so they benefit from caching at the same rate.
+      function inputCost(tokens) {
+        var cached = tokens * hit;
+        var fresh = tokens * (1 - hit);
+        return (cached * cacheRate + fresh * inRate) / 1e6;
+      }
+
+      var costPrompt = calls * inputCost(promptTok);
+      var costTools = calls * inputCost(toolTok);
+      var costOut = (calls * outTok * outRate) / 1e6;
+
+      // Split prompt cost into cached vs uncached for the composition bar.
+      var promptCached = (calls * promptTok * hit * cacheRate) / 1e6;
+      var promptFresh = (calls * promptTok * (1 - hit) * inRate) / 1e6;
+
+      var total = costPrompt + costTools + costOut;
+      var perCall = calls ? total / calls : 0;
+
+      return {
+        calls: calls,
+        retryCalls: retryCalls,
+        tokens: calls * (promptTok + toolTok + outTok),
+        total: total,
+        perConversation: v.conversationsPerMonth ? total / v.conversationsPerMonth : 0,
+        parts: {
+          output: costOut,
+          input: promptFresh,
+          cached: promptCached,
+          tools: costTools,
+        },
+        retryWaste: perCall * retryCalls,
+      };
+    }
+
+    function scenarios(v, model, batch, base) {
+      var out = [];
+
+      // 1. Route the easy majority to the cheapest available model.
+      var cheapest = MODELS.slice().sort(function (a, b) {
+        return a.inputPerM + a.outputPerM - (b.inputPerM + b.outputPerM);
+      })[0];
+      if (cheapest.id !== model.id) {
+        var cheapRun = compute(v, cheapest, batch);
+        var blended = base.total * 0.4 + cheapRun.total * 0.6;
+        if (blended < base.total) {
+          out.push({
+            title: 'Route 60% of calls to ' + cheapest.name,
+            detail:
+              'Classification, routing, extraction and formatting rarely need a frontier model. Keep the hard 40% where it is.',
+            saving: base.total - blended,
+            effort: '3–5 days',
+          });
+        }
+      }
+
+      // 2. Raise cache hit rate.
+      if (v.cacheHitRate < 80) {
+        var cached = compute(
+          Object.assign({}, v, { cacheHitRate: 80 }),
+          model,
+          batch
+        );
+        out.push({
+          title: 'Raise cache hit rate to 80%',
+          detail:
+            'System prompt and tool definitions are stable text and ideal cache candidates. A read costs about a tenth of base input.',
+          saving: base.total - cached.total,
+          effort: '1–2 days',
+        });
+      }
+
+      // 3. Cut retries.
+      if (v.retryRate > 3) {
+        var fewer = compute(Object.assign({}, v, { retryRate: 3 }), model, batch);
+        out.push({
+          title: 'Cut retry rate from ' + v.retryRate + '% to 3%',
+          detail:
+            'Most retries come from unactionable tool errors and unvalidated arguments. Fixing the cause removes the spend and the latency together.',
+          saving: base.total - fewer.total,
+          effort: '2–4 days',
+        });
+      }
+
+      // 4. Bound history.
+      if (v.inputTokensPerTurn > 4000 && v.turnsPerConversation > 4) {
+        var trimmed = compute(
+          Object.assign({}, v, { inputTokensPerTurn: Math.round(v.inputTokensPerTurn * 0.6) }),
+          model,
+          batch
+        );
+        out.push({
+          title: 'Bound conversation history (40% less input)',
+          detail:
+            'Sliding window plus summarisation of older turns. Unbounded history is the most common cause of cost growing with no traffic growth.',
+          saving: base.total - trimmed.total,
+          effort: '2–4 days',
+        });
+      }
+
+      // 5. Trim tool definitions.
+      if (v.toolDefinitionTokens > 800) {
+        var lean = compute(
+          Object.assign({}, v, { toolDefinitionTokens: Math.round(v.toolDefinitionTokens * 0.5) }),
+          model,
+          batch
+        );
+        out.push({
+          title: 'Halve tool definition tokens',
+          detail:
+            'Every tool schema is billed on every call. Tighten descriptions, and only expose the tools relevant to the current step.',
+          saving: base.total - lean.total,
+          effort: '1–2 days',
+        });
+      }
+
+      // 6. Batch.
+      if (!batch) {
+        var batched = compute(v, model, true);
+        out.push({
+          title: 'Move to batch processing',
+          detail:
+            'A 50% discount on input and output for anything that does not need an immediate response. Not applicable to interactive traffic.',
+          saving: base.total - batched.total,
+          effort: '2–3 days, if latency allows',
+        });
+      }
+
+      return out
+        .filter(function (s) {
+          return s.saving > base.total * 0.01;
+        })
+        .sort(function (a, b) {
+          return b.saving - a.saving;
+        });
+    }
+
+    function render() {
+      var v = readInputs();
+      var model = getModel(modelSel.value);
+      var batch = batchBox.checked;
+      var r = compute(v, model, batch);
+
+      // Slider read-outs
+      FIELDS.forEach(function (f) {
+        var el = document.querySelector('[data-out="' + f + '"]');
+        var unit = document.querySelector('[data-field="' + f + '"]').getAttribute('data-unit');
+        el.textContent = unit === '%' ? v[f] + '%' : v[f].toLocaleString('en-US');
+      });
+
+      document.querySelector('[data-out-monthly]').textContent = usd(r.total);
+      document.querySelector('[data-out-annual]').textContent = usd(r.total * 12);
+      document.querySelector('[data-out-per-conv]').textContent = usd(r.perConversation);
+      document.querySelector('[data-out-calls]').textContent = compact(r.calls);
+      document.querySelector('[data-out-tokens]').textContent = compact(r.tokens);
+
+      // Composition
+      ['output', 'input', 'cached', 'tools'].forEach(function (k) {
+        var pct = r.total ? (r.parts[k] / r.total) * 100 : 0;
+        document.querySelector('[data-seg="' + k + '"]').style.width = pct + '%';
+        document.querySelector('[data-cost="' + k + '"]').textContent =
+          usd(r.parts[k]) + ' (' + Math.round(pct) + '%)';
+      });
+
+      document.querySelector('[data-out-retry-waste]').textContent = usd(r.retryWaste);
+      document.querySelector('[data-retry-note]').textContent =
+        v.retryRate > 8
+          ? 'A retry rate above 8% usually means tools are returning errors the model cannot act on.'
+          : v.retryRate === 0
+            ? 'A 0% retry rate is unusual in production — if you are not counting retries, this figure is understated.'
+            : 'Retries are billed like any other call, and are commonly untracked.';
+
+      // Scenarios
+      var list = document.querySelector('[data-scenarios]');
+      list.innerHTML = '';
+      var sc = scenarios(v, model, batch, r);
+      if (!sc.length) {
+        var li0 = document.createElement('li');
+        li0.className = 'rounded-xl border p-4 text-sm';
+        li0.style.color = 'var(--fg-muted)';
+        li0.textContent =
+          'Nothing obvious left at these settings — you are already on a cheap model with high cache hits and low retries.';
+        list.appendChild(li0);
+      }
+      sc.forEach(function (s) {
+        var li = document.createElement('li');
+        li.className = 'rounded-xl border p-4';
+        li.style.background = 'var(--bg)';
+        li.innerHTML =
+          '<div class="flex flex-wrap items-baseline justify-between gap-3">' +
+          '<p class="font-semibold text-[15px]">' +
+          s.title +
+          '</p>' +
+          '<p class="font-mono text-sm font-bold tabular-nums" style="color: var(--good)">−' +
+          usd(s.saving) +
+          '/mo</p></div>' +
+          '<p class="mt-1.5 text-sm leading-relaxed" style="color: var(--fg-muted)">' +
+          s.detail +
+          '</p>' +
+          '<p class="mt-1.5 font-mono text-xs" style="color: var(--fg-subtle)">Effort: ' +
+          s.effort +
+          ' · saves ' +
+          usd(s.saving * 12) +
+          '/year</p>';
+        list.appendChild(li);
+      });
+
+      // Comparison table
+      var tbody = document.querySelector('[data-compare]');
+      tbody.innerHTML = '';
+      MODELS.map(function (m) {
+        return { m: m, r: compute(v, m, batch) };
+      })
+        .sort(function (a, b) {
+          return a.r.total - b.r.total;
+        })
+        .forEach(function (row) {
+          var tr = document.createElement('tr');
+          tr.className = 'border-b';
+          var selected = row.m.id === model.id;
+          if (selected) tr.style.background = 'var(--accent-soft)';
+          var delta = r.total ? ((row.r.total - r.total) / r.total) * 100 : 0;
+          var deltaTxt = selected
+            ? '—'
+            : (delta > 0 ? '+' : '') + Math.round(delta) + '%';
+          tr.innerHTML =
+            '<th scope="row" class="px-2 py-2.5 text-left font-medium">' +
+            row.m.name +
+            (selected ? ' <span class="font-normal" style="color: var(--accent)">(selected)</span>' : '') +
+            '</th>' +
+            '<td class="px-2 py-2.5 text-right font-mono tabular-nums">' +
+            usd(row.r.total) +
+            '</td>' +
+            '<td class="px-2 py-2.5 text-right font-mono tabular-nums" style="color: var(--fg-muted)">' +
+            usd(row.r.perConversation) +
+            '</td>' +
+            '<td class="px-2 py-2.5 text-right font-mono tabular-nums" style="color:' +
+            (selected ? 'var(--fg-subtle)' : delta > 0 ? 'var(--risk)' : 'var(--good)') +
+            '">' +
+            deltaTxt +
+            '</td>';
+          tbody.appendChild(tr);
+        });
+
+      // Model note
+      var note = document.querySelector('[data-model-note]');
+      note.textContent = model.notes || '';
+
+      // WhatsApp handoff
+      var presetName =
+        presetSel.value === 'custom'
+          ? 'Custom'
+          : (PRESETS.filter(function (p) {
+              return p.id === presetSel.value;
+            })[0] || {}).name || 'Custom';
+
+      var best = sc.length ? sc[0] : null;
+      var msg = [
+        'Hi Durgesh — I used the agent cost calculator on ' +
+          WA.site.replace(/^https?:\/\//, '') +
+          '.',
+        '',
+        'Workload: ' + presetName,
+        'Model: ' + model.name + (batch ? ' (batch)' : ''),
+        'Volume: ' +
+          v.conversationsPerMonth.toLocaleString('en-US') +
+          ' conversations/month, ' +
+          v.turnsPerConversation +
+          ' turns each',
+        'Estimated spend: ' + usd(r.total) + '/month (' + usd(r.perConversation) + ' per conversation)',
+        'Lost to retries: ' + usd(r.retryWaste) + '/month',
+      ];
+      if (best) msg.push('Biggest lever suggested: ' + best.title + ' (−' + usd(best.saving) + '/mo)');
+      msg.push('', "I'd like to talk about bringing this down without hurting quality.");
+
+      document.querySelector('[data-wa-send]').href = WA.base + encodeURIComponent(msg.join('\n'));
+    }
+
+    function applyPreset(id) {
+      var p = PRESETS.filter(function (x) {
+        return x.id === id;
+      })[0];
+      if (!p) return;
+      FIELDS.forEach(function (f) {
+        var el = document.querySelector('[data-field="' + f + '"]');
+        if (p[f] !== undefined) el.value = String(p[f]);
+      });
+      if (p.modelId) modelSel.value = p.modelId;
+      document.querySelector('[data-preset-desc]').textContent = p.description;
+      render();
+    }
+
+    presetSel.addEventListener('change', function () {
+      if (presetSel.value === 'custom') {
+        document.querySelector('[data-preset-desc]').textContent =
+          'Adjust anything below — the preset selector will stay on Custom.';
+        render();
+      } else {
+        applyPreset(presetSel.value);
+      }
+    });
+
+    FIELDS.forEach(function (f) {
+      document.querySelector('[data-field="' + f + '"]').addEventListener('input', function () {
+        presetSel.value = 'custom';
+        document.querySelector('[data-preset-desc]').textContent = '';
+        render();
+      });
+    });
+
+    modelSel.addEventListener('change', render);
+    batchBox.addEventListener('change', render);
+
+    applyPreset(PRESETS[0].id);
+  })();
+</script>

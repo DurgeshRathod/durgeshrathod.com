@@ -1,0 +1,135 @@
+---
+import { getCollection } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import CtaRow from '../../components/CtaRow.astro';
+import { PILLARS } from '../../consts.ts';
+import { href } from '../../lib/paths.ts';
+import { breadcrumbSchema } from '../../lib/seo.ts';
+
+const cases = (await getCollection('work'))
+  .filter((c) => !c.data.draft)
+  .sort((a, b) => a.data.order - b.data.order);
+
+const pillarName = (id: string) => PILLARS.find((p) => p.id === id)?.name ?? id;
+
+const schema = [
+  {
+    '@type': 'CollectionPage',
+    name: 'Case studies',
+    description:
+      'Production systems taken from prototype to production: conversational analytics on multi-tenant data, multi-agent orchestration, and high-throughput data platforms.',
+    hasPart: cases.map((c) => ({
+      '@type': 'Article',
+      headline: c.data.title,
+      description: c.data.description,
+      url: `${import.meta.env.SITE ?? 'https://durgeshrathod.com'}/work/${c.id}`,
+    })),
+  },
+  breadcrumbSchema([
+    { name: 'Home', path: '/' },
+    { name: 'Work', path: '/work' },
+  ]),
+];
+---
+
+<Base
+  title="Case studies — systems I have taken to production"
+  description="Three production systems with the architecture, the numbers, and the thing that broke on the way: multi-tenant conversational analytics, multi-agent orchestration on MCP and CrewAI, and a 520M-parameter telecom data platform."
+  path="/work"
+  schema={schema}
+>
+  <section class="container-page pt-14 pb-10">
+    <nav aria-label="Breadcrumb" class="text-sm" style="color: var(--fg-subtle);">
+      <a href={href('/')} class="hover:underline">Home</a>
+      <span class="mx-1.5" aria-hidden="true">/</span>
+      <span style="color: var(--fg-muted);">Work</span>
+    </nav>
+
+    <h1 class="text-h1 mt-8 max-w-3xl font-semibold" style="text-wrap: balance;">
+      Systems I have taken to production
+    </h1>
+    <p class="text-lead mt-5 max-w-2xl" style="color: var(--fg-muted);">
+      Each of these includes the architecture, the number it is remembered for, and the thing
+      that broke on the way. I include the failures because a case study without one is
+      marketing, and because the failure is usually the most useful part to read.
+    </p>
+  </section>
+
+  <section class="container-page pb-16">
+    <div class="grid gap-5">
+      {
+        cases.map((c, i) => (
+          <a
+            href={href(`/work/${c.id}`)}
+            class="group grid gap-6 rounded-2xl border p-7 transition-transform hover:-translate-y-0.5 lg:grid-cols-[220px_1fr] lg:gap-10"
+            style="background: var(--bg-raised); box-shadow: var(--shadow-card);"
+            data-reveal
+            data-reveal-delay={i * 70}
+          >
+            <div>
+              <p class="text-h2 font-semibold tabular-nums tracking-tight" style="color: var(--accent);">
+                {c.data.headlineStat.value}
+              </p>
+              <p class="mt-1 text-xs font-semibold uppercase tracking-wider" style="color: var(--fg-subtle);">
+                {c.data.headlineStat.label}
+              </p>
+              <p class="mt-4 flex flex-wrap gap-1.5">
+                {c.data.pillars.map((p) => (
+                  <span
+                    class="rounded-md px-2 py-0.5 text-[11px] font-semibold"
+                    style="background: var(--accent-soft); color: var(--accent);"
+                  >
+                    {pillarName(p)}
+                  </span>
+                ))}
+              </p>
+            </div>
+
+            <div>
+              <h2 class="text-h3 font-semibold leading-snug">{c.data.title}</h2>
+              <p class="mt-2.5 text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+                {c.data.description}
+              </p>
+
+              <p class="mt-4 border-l-2 pl-3.5 text-sm leading-relaxed" style="border-color: var(--risk); color: var(--fg-muted);">
+                <strong style="color: var(--risk);">What broke:</strong> {c.data.whatBroke}
+              </p>
+
+              <p class="mt-4 flex flex-wrap gap-1.5">
+                {c.data.stack.slice(0, 6).map((s) => (
+                  <span class="rounded-md border px-2 py-0.5 font-mono text-[11px]" style="color: var(--fg-subtle);">
+                    {s}
+                  </span>
+                ))}
+              </p>
+
+              <span class="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold" style="color: var(--accent);">
+                Read the full case study
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="size-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true">
+                  <path d="M5 12h14M13 6l6 6-6 6" />
+                </svg>
+              </span>
+            </div>
+          </a>
+        ))
+      }
+    </div>
+
+    <div class="mt-12 rounded-2xl border p-7" style="background: var(--bg-raised);">
+      <h2 class="text-h3 font-semibold">A note on what is not here</h2>
+      <p class="mt-2.5 max-w-3xl text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+        I have shipped more than three systems in nine years — recruitment platforms, contract
+        lifecycle management, meeting transcription, computer vision, published open-source
+        packages. They are on <a
+          href={href('/about')}
+          class="font-medium underline decoration-1 underline-offset-4"
+          style="color: var(--fg);">the about page</a
+        >. These three are here because they are the ones that taught me something I still use,
+        and I would rather write three properly than list eleven.
+      </p>
+      <div class="mt-6">
+        <CtaRow source="work-index-foot" intent="general" primaryLabel="Ask me about any of it" booking={false} />
+      </div>
+    </div>
+  </section>
+</Base>

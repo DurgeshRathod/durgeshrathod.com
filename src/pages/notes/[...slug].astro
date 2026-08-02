@@ -1,0 +1,142 @@
+---
+import type { GetStaticPaths } from 'astro';
+import { getCollection, render } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import CtaRow from '../../components/CtaRow.astro';
+import Faq from '../../components/Faq.astro';
+import { SITE } from '../../consts.ts';
+import { href } from '../../lib/paths.ts';
+import { articleSchema, faqSchema, breadcrumbSchema } from '../../lib/seo.ts';
+
+export const getStaticPaths: GetStaticPaths = async () => {
+  const entries = (await getCollection('notes')).filter((e) => !e.data.draft);
+  return entries.map((entry) => ({ params: { slug: entry.id }, props: { entry } }));
+};
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+const d = entry.data;
+
+const others = (await getCollection('notes'))
+  .filter((e) => !e.data.draft && e.id !== entry.id)
+  .sort((a, b) => new Date(b.data.published).valueOf() - new Date(a.data.published).valueOf())
+  .slice(0, 2);
+
+const fmt = (iso: string) =>
+  new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+
+const schema = [
+  articleSchema({
+    title: d.title,
+    description: d.description,
+    path: `/notes/${entry.id}`,
+    published: d.published,
+    updated: d.updated,
+    section: 'Notes',
+    keywords: d.keywords,
+  }),
+  ...(d.faq.length ? [faqSchema(d.faq)] : []),
+  breadcrumbSchema([
+    { name: 'Home', path: '/' },
+    { name: 'Notes', path: '/notes' },
+    { name: d.title, path: `/notes/${entry.id}` },
+  ]),
+];
+---
+
+<Base
+  title={d.title}
+  description={d.description}
+  path={`/notes/${entry.id}`}
+  schema={schema}
+  published={d.published}
+  updated={d.updated}
+>
+  <article>
+    <header class="container-prose pt-14 pb-8">
+      <nav aria-label="Breadcrumb" class="text-sm" style="color: var(--fg-subtle);">
+        <a href={href('/')} class="hover:underline">Home</a>
+        <span class="mx-1.5" aria-hidden="true">/</span>
+        <a href={href('/notes')} class="hover:underline">Notes</a>
+      </nav>
+
+      <h1 class="text-h1 mt-8 font-semibold" style="text-wrap: balance;">{d.title}</h1>
+
+      <p class="mt-5 text-[17px] leading-relaxed" style="color: var(--fg-muted);">
+        {d.description}
+      </p>
+
+      <div class="mt-6 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm" style="color: var(--fg-subtle);">
+        <span>{SITE.name}</span>
+        <span aria-hidden="true">·</span>
+        <time datetime={d.published}>{fmt(d.published)}</time>
+        {d.updated && d.updated !== d.published && (
+          <>
+            <span aria-hidden="true">·</span>
+            <span>updated <time datetime={d.updated}>{fmt(d.updated)}</time></span>
+          </>
+        )}
+        {d.readingMinutes && (
+          <>
+            <span aria-hidden="true">·</span>
+            <span>{d.readingMinutes} min read</span>
+          </>
+        )}
+      </div>
+    </header>
+
+    <div class="container-prose">
+      <div class="prose">
+        <Content />
+      </div>
+    </div>
+
+    {
+      d.faq.length > 0 && (
+        <section class="container-prose mt-16">
+          <h2 class="text-h2 font-semibold">Quick answers</h2>
+          <div class="mt-6">
+            <Faq items={d.faq} />
+          </div>
+        </section>
+      )
+    }
+
+    <div class="container-page mt-16">
+      <div class="grid gap-5 lg:grid-cols-2">
+        <div class="rounded-2xl border p-7" style="background: var(--bg-raised);">
+          <h2 class="text-h3 font-semibold">Working on this problem?</h2>
+          <p class="mt-2.5 text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+            Tell me what you are seeing. I answer specific questions about specific systems for
+            free — it is how most engagements start, and how plenty of them usefully do not.
+          </p>
+          <div class="mt-6">
+            <CtaRow source={`note-${entry.id}`} intent="general" primaryLabel="Message me" booking={false} />
+          </div>
+        </div>
+
+        {
+          others.length > 0 && (
+            <div class="rounded-2xl border p-7" style="background: var(--bg-raised);">
+              <h2 class="text-h3 font-semibold">More notes</h2>
+              <ul class="mt-4 grid gap-4">
+                {others.map((o) => (
+                  <li>
+                    <a href={href(`/notes/${o.id}`)} class="group block">
+                      <p class="text-[15px] font-semibold leading-snug group-hover:underline">
+                        {o.data.title}
+                      </p>
+                      <p class="mt-1 text-[13px] leading-relaxed" style="color: var(--fg-muted);">
+                        {o.data.description}
+                      </p>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )
+        }
+      </div>
+    </div>
+  </article>
+</Base>

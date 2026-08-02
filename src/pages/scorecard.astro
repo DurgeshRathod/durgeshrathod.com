@@ -1,0 +1,1005 @@
+---
+import Base from '../layouts/Base.astro';
+import CtaRow from '../components/CtaRow.astro';
+import Faq from '../components/Faq.astro';
+import scorecard from '../data/scorecard.json';
+import { SITE, CONTACT } from '../consts.ts';
+import { href } from '../lib/paths.ts';
+import { WA_BASE } from '../lib/whatsapp.ts';
+import { toolSchema, faqSchema, breadcrumbSchema, type QA } from '../lib/seo.ts';
+
+const { meta, pillars, questions, bands } = scorecard;
+
+const maxScore = questions.reduce((s, q) => s + q.weight * meta.maxScorePerQuestion, 0);
+
+const faqs: QA[] = [
+  {
+    q: 'How is the score calculated?',
+    a: `Each of the ${questions.length} questions is answered on a 0–3 scale and multiplied by a weight reflecting how often that gap causes real incidents. The weighted total is normalised to 0–100 against a maximum of ${maxScore} weighted points, and reported per pillar as well as overall.\n\nThe weights are my judgement from production work, not an industry standard. The ranking of your gaps matters more than the absolute number.`,
+  },
+  {
+    q: 'Is my data sent anywhere?',
+    a: 'No. The scorecard is plain JavaScript running in your browser on a static page. There is no backend to send anything to, no analytics on your answers, and nothing stored. Reloading the page loses your answers, which is the tradeoff for not storing them.\n\nIf you choose to send your result via WhatsApp at the end, that message is composed in your browser and you see it before it sends.',
+  },
+  {
+    q: 'What is a good score?',
+    a: 'Most teams shipping agents today land in the 30s or 40s on a first honest attempt, which is why the bands are set where they are. Above 75 is genuinely production-grade. Above 90 is rare.\n\nIf you score above 90 you almost certainly do not need to hire me, and I will say so.',
+  },
+  {
+    q: 'Can I get the result as a PDF?',
+    a: 'Yes — the results panel has a print button, and printing to PDF gives you a clean report with your score, pillar breakdown, and every gap with its fix and effort estimate. The print stylesheet strips the navigation and interactive controls.\n\nIt is deliberately a browser print rather than a generated file, so nothing has to be uploaded to produce it.',
+  },
+];
+
+const schema = [
+  toolSchema({
+    name: meta.title,
+    description: meta.description,
+    path: '/scorecard',
+    category: 'BusinessApplication',
+  }),
+  faqSchema(faqs),
+  breadcrumbSchema([
+    { name: 'Home', path: '/' },
+    { name: 'Readiness Scorecard', path: '/scorecard' },
+  ]),
+];
+
+const riskOrder = { critical: 0, high: 1, medium: 2, low: 3 } as const;
+---
+
+<Base
+  title="Is your AI agent production-ready? Free 12-question scorecard"
+  description={meta.description}
+  path="/scorecard"
+  schema={schema}
+  published="2026-08-02"
+>
+  <!-- Config consumed by the client script. Inlined, so no fetch and no base-path issues. -->
+  <script type="application/json" id="scorecard-data" set:html={JSON.stringify(scorecard)} is:inline />
+  <script type="application/json" id="wa-config" set:html={JSON.stringify({ base: WA_BASE, site: SITE.url })} is:inline />
+
+  <!-- ── Intro ────────────────────────────────────────────────────────── -->
+  <section class="container-page pt-14 pb-8" data-print-hide>
+    <nav aria-label="Breadcrumb" class="text-sm" style="color: var(--fg-subtle);">
+      <a href={href('/')} class="hover:underline">Home</a>
+      <span class="mx-1.5" aria-hidden="true">/</span>
+      <span style="color: var(--fg-muted);">Readiness Scorecard</span>
+    </nav>
+
+    <p class="mt-8 text-xs font-semibold uppercase tracking-[0.14em]" style="color: var(--accent);">
+      Free · {meta.estimatedMinutes} minutes · nothing leaves your browser
+    </p>
+    <h1 class="text-h1 mt-3 max-w-3xl font-semibold" style="text-wrap: balance;">
+      Is your AI agent production-ready, or just working today?
+    </h1>
+    <p class="text-lead mt-5 max-w-2xl" style="color: var(--fg-muted);">
+      {questions.length} questions on the things that actually cause incidents — not model choice
+      or prompt style. You get a score out of 100, a breakdown across three pillars, and your gaps
+      ranked by production risk with a fix and an effort estimate for each.
+    </p>
+
+    <div class="mt-8 grid gap-3 sm:grid-cols-3">
+      {
+        pillars.map((p) => (
+          <div class="rounded-xl border p-4" style="background: var(--bg-raised);">
+            <h2 class="text-sm font-semibold">{p.name}</h2>
+            <p class="mt-1 text-[13px] leading-relaxed" style="color: var(--fg-muted);">
+              {p.blurb}
+            </p>
+          </div>
+        ))
+      }
+    </div>
+
+    <noscript>
+      <div class="mt-8 rounded-xl border p-5" style="background: var(--bg-raised);">
+        <p class="text-sm leading-relaxed" style="color: var(--fg-muted);">
+          Scoring needs JavaScript. All {questions.length} questions, every answer option, and the
+          full gap analysis are written out below regardless — so you can work through them on
+          paper and reach the same conclusions.
+        </p>
+      </div>
+    </noscript>
+  </section>
+
+  <!-- ── Sticky live score ────────────────────────────────────────────── -->
+  <div
+    data-score-bar
+    hidden
+    class="sticky top-16 z-30 border-y backdrop-blur-xl"
+    style="background: color-mix(in oklab, var(--bg) 88%, transparent);"
+    data-print-hide
+  >
+    <div class="container-page flex items-center gap-4 py-3">
+      <div class="flex items-baseline gap-1.5">
+        <span class="text-h3 font-semibold tabular-nums" data-live-score>0</span>
+        <span class="text-sm" style="color: var(--fg-subtle);">/ 100</span>
+      </div>
+      <div class="h-1.5 flex-1 overflow-hidden rounded-full" style="background: var(--bg-sunken);">
+        <div
+          data-live-bar
+          class="h-full rounded-full transition-all duration-500"
+          style="width: 0%; background: var(--risk);"
+        >
+        </div>
+      </div>
+      <span class="hidden text-sm tabular-nums sm:inline" style="color: var(--fg-muted);">
+        <span data-answered>0</span>/{questions.length} answered
+      </span>
+      <a
+        href="#results"
+        data-jump-results
+        hidden
+        class="shrink-0 rounded-lg px-3 py-1.5 text-sm font-semibold"
+        style="background: var(--accent-solid); color: var(--accent-solid-fg);">See result</a
+      >
+    </div>
+  </div>
+
+  <!-- ── Questions ────────────────────────────────────────────────────── -->
+  <section class="container-page py-10">
+    <h2 class="sr-only">Assessment questions</h2>
+    <form data-scorecard-form class="grid gap-5">
+      {
+        questions.map((q, i) => (
+          <fieldset
+            data-question={q.id}
+            data-pillar={q.pillar}
+            data-weight={q.weight}
+            class="rounded-2xl border p-6 transition-colors"
+            style="background: var(--bg-raised);"
+          >
+            <legend class="sr-only">{`Question ${i + 1}`}</legend>
+
+            <div class="flex items-start gap-4">
+              <span
+                class="mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg font-mono text-xs font-bold"
+                style="background: var(--bg-sunken); color: var(--fg-subtle);"
+                data-qnum
+              >
+                {i + 1}
+              </span>
+              <div class="min-w-0 flex-1">
+                <p class="text-[17px] font-semibold leading-snug">{q.question}</p>
+                <p class="mt-1.5 text-sm leading-relaxed" style="color: var(--fg-subtle);">
+                  {q.help}
+                </p>
+
+                <div class="mt-4 grid gap-2">
+                  {q.options.map((opt, oi) => (
+                    <label
+                      class="flex cursor-pointer items-start gap-3 rounded-xl border p-3 text-[15px] transition-colors"
+                      data-option
+                    >
+                      <input
+                        type="radio"
+                        name={q.id}
+                        value={opt.score}
+                        data-signal={opt.signal}
+                        class="mt-0.5 size-4 shrink-0 accent-current"
+                        style="accent-color: var(--accent);"
+                      />
+                      <span class="flex-1">{opt.label}</span>
+                      <span
+                        class="shrink-0 font-mono text-xs tabular-nums"
+                        style="color: var(--fg-subtle);"
+                      >
+                        {opt.score}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+
+                {/*
+                  The gap explanation is in the HTML for every question, not injected on
+                  demand. That makes the whole reference crawlable and citable, and means
+                  a visitor can read why a question matters before answering it.
+                */}
+                <details class="mt-3.5">
+                  <summary
+                    class="cursor-pointer text-[13px] font-semibold"
+                    style="color: var(--fg-subtle);"
+                  >
+                    Why this question matters
+                  </summary>
+                  <div class="mt-2.5 rounded-lg border-l-2 pl-3.5 text-[13px] leading-relaxed" style="border-color: var(--accent);">
+                    <p class="font-semibold">{q.gap.title}</p>
+                    <p class="mt-1" style="color: var(--fg-muted);">{q.gap.consequence}</p>
+                    <p class="mt-2" style="color: var(--fg-muted);">
+                      <strong style="color: var(--fg);">Fix:</strong> {q.gap.fix}
+                    </p>
+                    <p class="mt-1 font-mono text-xs" style="color: var(--fg-subtle);">
+                      Effort: {q.gap.effort} · Risk if unaddressed: {q.gap.risk}
+                    </p>
+                  </div>
+                </details>
+              </div>
+            </div>
+          </fieldset>
+        ))
+      }
+    </form>
+  </section>
+
+  <!-- ── Results ──────────────────────────────────────────────────────── -->
+  <section id="results" data-results hidden class="container-page pb-16">
+    <div class="rounded-3xl border p-7 sm:p-10" style="background: var(--bg-raised); box-shadow: var(--shadow-card);">
+      <!-- Print-only header, so a saved PDF identifies itself. -->
+      <div hidden data-print-only class="mb-6">
+        <p class="text-sm font-semibold">Agent Production Readiness Scorecard</p>
+        <p class="text-xs" style="color: var(--fg-muted);">
+          {SITE.url} · assessment version {meta.version}
+        </p>
+      </div>
+
+      <!--
+        Executive summary. Deliberately first, in the DOM and in print.
+
+        The scorecard is run by an engineer but acted on by whoever approves work, so the
+        results have to speak to both. This block is the version a manager reads and forwards:
+        business consequence rather than engineering detail, a real total of engineering days,
+        and one recommended decision. The technical breakdown follows underneath.
+      -->
+      <div
+        data-exec-summary
+        class="mb-10 rounded-2xl border p-6 sm:p-7"
+        style="background: var(--bg); border-color: var(--accent);"
+      >
+        <div class="flex flex-wrap items-baseline justify-between gap-3">
+          <p class="text-xs font-semibold uppercase tracking-[0.14em]" style="color: var(--accent);">
+            Executive summary
+          </p>
+          <p class="font-mono text-[13px]" style="color: var(--fg-subtle);">
+            <span data-exec-score>—</span>/100 · <span data-exec-band>—</span>
+          </p>
+        </div>
+
+        <p class="mt-4 max-w-3xl text-[17px] leading-relaxed font-medium" data-exec-verdict></p>
+
+        <div class="mt-6 grid gap-6 sm:grid-cols-2">
+          <div data-exec-exposure-wrap>
+            <h3 class="text-xs font-semibold uppercase tracking-wider" style="color: var(--risk);">
+              What you are exposed to
+            </h3>
+            <ul data-exec-exposure class="mt-2.5 grid gap-2 text-[14px] leading-relaxed"></ul>
+          </div>
+
+          <div>
+            <h3 class="text-xs font-semibold uppercase tracking-wider" style="color: var(--fg-subtle);">
+              What it takes to fix
+            </h3>
+            <p class="mt-2.5 text-[14px] leading-relaxed" data-exec-effort style="color: var(--fg-muted);"></p>
+          </div>
+        </div>
+
+        <div class="mt-6 border-t pt-5">
+          <h3 class="text-xs font-semibold uppercase tracking-wider" style="color: var(--fg-subtle);">
+            Recommended decision
+          </h3>
+          <p class="mt-2 max-w-3xl text-[15px] leading-relaxed font-medium" data-exec-decision></p>
+        </div>
+
+        <div class="mt-5 flex flex-wrap items-center gap-3" data-print-hide>
+          <button
+            type="button"
+            data-copy-exec
+            class="inline-flex items-center gap-2 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors"
+            style="border-color: var(--border-strong);"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-3.5" aria-hidden="true">
+              <path d="M8 4h10a2 2 0 0 1 2 2v10M16 8H6a2 2 0 0 0-2 2v10h12V8Z" />
+            </svg>
+            <span data-copy-exec-label>Copy summary to forward</span>
+          </button>
+          <span class="text-[13px]" style="color: var(--fg-subtle);">
+            Written for whoever approves the work.
+          </span>
+        </div>
+      </div>
+
+      <div class="grid gap-8 lg:grid-cols-[auto_1fr] lg:gap-12">
+        <!-- Score dial -->
+        <div class="flex flex-col items-center">
+          <svg viewBox="0 0 200 200" class="size-44" role="img" aria-labelledby="dial-label">
+            <title id="dial-label">Overall readiness score</title>
+            <circle cx="100" cy="100" r="84" fill="none" stroke="var(--bg-sunken)" stroke-width="16" />
+            <circle
+              data-dial
+              cx="100"
+              cy="100"
+              r="84"
+              fill="none"
+              stroke="var(--risk)"
+              stroke-width="16"
+              stroke-linecap="round"
+              stroke-dasharray="527.8"
+              stroke-dashoffset="527.8"
+              transform="rotate(-90 100 100)"
+              style="transition: stroke-dashoffset 900ms cubic-bezier(0.16,1,0.3,1), stroke 400ms;"
+            ></circle>
+            <text
+              x="100"
+              y="97"
+              text-anchor="middle"
+              font-size="46"
+              font-weight="700"
+              fill="var(--fg)"
+              style="font-variant-numeric: tabular-nums;"
+              data-dial-text>0</text
+            >
+            <text x="100" y="123" text-anchor="middle" font-size="15" fill="var(--fg-subtle)">out of 100</text>
+          </svg>
+          <p class="mt-2 text-center">
+            <span class="text-h3 font-semibold" data-band-label>—</span>
+          </p>
+        </div>
+
+        <!-- Verdict + pillars -->
+        <div>
+          <h2 class="text-h2 font-semibold">Your result</h2>
+          <p class="mt-3 text-[15px] leading-relaxed" data-band-verdict style="color: var(--fg-muted);"></p>
+          <p class="mt-3 text-[15px] leading-relaxed" data-band-rec style="color: var(--fg-muted);"></p>
+
+          <div class="mt-7 grid gap-3">
+            {
+              pillars.map((p) => (
+                <div data-pillar-row={p.id}>
+                  <div class="flex items-baseline justify-between gap-3 text-sm">
+                    <span class="font-semibold">{p.name}</span>
+                    <span class="font-mono tabular-nums" data-pillar-score style="color: var(--fg-muted);">
+                      —
+                    </span>
+                  </div>
+                  <div class="mt-1.5 h-2 overflow-hidden rounded-full" style="background: var(--bg-sunken);">
+                    <div
+                      data-pillar-bar
+                      class="h-full rounded-full transition-all duration-700"
+                      style="width: 0%; background: var(--accent);"
+                    />
+                  </div>
+                </div>
+              ))
+            }
+          </div>
+        </div>
+      </div>
+
+      <!-- Gaps -->
+      <div class="mt-10 border-t pt-8">
+        <h3 class="text-h3 font-semibold">What to fix, in order</h3>
+        <p class="mt-2 text-sm" style="color: var(--fg-muted);">
+          Ranked by production risk, then by how often the gap causes incidents. Each has an
+          effort estimate so you can decide what fits this sprint.
+        </p>
+        <ol data-gaps class="mt-6 grid gap-3"></ol>
+        <p data-no-gaps hidden class="mt-6 rounded-xl border p-5 text-[15px] leading-relaxed" style="background: var(--bg);">
+          No significant gaps flagged. That is unusual — and if it is an honest result, you
+          probably do not need to hire anyone. I would rather tell you that than sell you an audit.
+        </p>
+      </div>
+
+      <!-- Handoff -->
+      <div class="mt-10 border-t pt-8" data-print-hide>
+        <h3 class="text-h3 font-semibold">Want a second opinion on this?</h3>
+        <p class="mt-2 max-w-2xl text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+          Send me your result and I will tell you which gap I would close first and why —
+          no charge for that. The message below is composed in your browser; you will see
+          exactly what it says before it sends.
+        </p>
+
+        <div class="mt-5 grid gap-3 sm:grid-cols-2">
+          <label class="grid gap-1.5">
+            <span class="text-sm font-medium">Your stack <span style="color: var(--fg-subtle);">(optional)</span></span>
+            <input
+              type="text"
+              data-input-stack
+              placeholder="LangGraph + Claude Sonnet"
+              class="rounded-lg border px-3 py-2.5 text-[15px] outline-none"
+              style="background: var(--bg); color: var(--fg);"
+            />
+          </label>
+          <label class="grid gap-1.5">
+            <span class="text-sm font-medium">Rough volume <span style="color: var(--fg-subtle);">(optional)</span></span>
+            <input
+              type="text"
+              data-input-volume
+              placeholder="~15k conversations/month"
+              class="rounded-lg border px-3 py-2.5 text-[15px] outline-none"
+              style="background: var(--bg); color: var(--fg);"
+            />
+          </label>
+        </div>
+
+        <div class="mt-5 flex flex-wrap items-center gap-3">
+          <a
+            data-wa-send
+            href="#"
+            target="_blank"
+            rel="noopener"
+            data-analytics="scorecard-whatsapp"
+            class="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-[15px] font-semibold transition-all hover:opacity-90 active:scale-[0.98]"
+            style="background: var(--accent-solid); color: var(--accent-solid-fg);"
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" class="size-[18px]" aria-hidden="true">
+              <path
+                d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.9-4.45 9.9-9.91C21.95 6.45 17.5 2 12.04 2Zm5.8 14.06c-.24.68-1.42 1.3-1.96 1.35-.54.05-1.03.24-3.5-.73-2.98-1.17-4.85-4.25-5-4.45-.14-.2-1.17-1.56-1.17-2.97 0-1.41.73-2.1 1-2.4.26-.29.58-.36.78-.36l.56.01c.18 0 .42-.07.66.5.24.58.83 2 .9 2.15.07.14.12.31.02.5-.1.2-.15.32-.29.5l-.44.5c-.14.15-.29.3-.13.6.15.29.68 1.17 1.46 1.9.99.94 1.83 1.23 2.1 1.37.26.15.42.12.58-.07.15-.2.68-.8.86-1.08.19-.29.37-.24.62-.14.24.1 1.56.73 1.83.87.27.14.44.2.51.31.07.12.07.68-.17 1.36Z"
+              ></path>
+            </svg>
+            Send my result on WhatsApp
+          </a>
+
+          <button
+            type="button"
+            data-print
+            class="inline-flex items-center gap-2 rounded-xl border px-5 py-3 text-[15px] font-semibold"
+            style="border-color: var(--border-strong);"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-4" aria-hidden="true">
+              <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z" />
+            </svg>
+            Save as PDF
+          </button>
+
+          <button
+            type="button"
+            data-copy
+            class="text-sm font-medium underline decoration-1 underline-offset-4"
+            style="color: var(--fg-muted);">copy as text</button
+          >
+        </div>
+
+        <details class="mt-5">
+          <summary class="cursor-pointer text-[13px] font-semibold" style="color: var(--fg-subtle);">
+            Preview the message
+          </summary>
+          <pre
+            data-wa-preview
+            class="scroll-x mt-2.5 rounded-lg border p-3.5 font-mono text-[12px] leading-relaxed whitespace-pre-wrap"
+            style="background: var(--bg); color: var(--fg-muted);"></pre>
+        </details>
+
+        <p class="mt-5 text-[13px]" style="color: var(--fg-subtle);">
+          Prefer email? <a href={`mailto:${CONTACT.email}`} class="underline decoration-1 underline-offset-2">{CONTACT.email}</a>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── FAQ ──────────────────────────────────────────────────────────── -->
+  <section class="container-page pb-16" data-print-hide>
+    <h2 class="text-h2 font-semibold">About this scorecard</h2>
+    <div class="mt-6 max-w-3xl">
+      <Faq items={faqs} />
+    </div>
+
+    <div class="mt-12 rounded-2xl border p-7" style="background: var(--bg-raised);">
+      <h2 class="text-h3 font-semibold">Rather have someone else do this properly?</h2>
+      <p class="mt-2.5 max-w-2xl text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+        The scorecard is the self-serve version of the first week of an audit. The paid version
+        runs against your actual code and traffic instead of your recollection, and produces an
+        eval suite your team keeps.
+      </p>
+      <div class="mt-6">
+        <CtaRow source="scorecard-foot" intent="audit" primaryLabel="Talk about an audit" />
+      </div>
+    </div>
+  </section>
+</Base>
+
+<style is:global>
+  /* Print stylesheet — turns the results panel into a clean one-page report. */
+  @media print {
+    [data-print-hide],
+    header.sticky,
+    footer,
+    [data-cmdk] {
+      display: none !important;
+    }
+    [data-print-only] {
+      display: block !important;
+    }
+    [data-results] {
+      display: block !important;
+    }
+    [data-results] > div {
+      border: none !important;
+      box-shadow: none !important;
+      padding: 0 !important;
+      background: white !important;
+    }
+    body {
+      background: white !important;
+      color: black !important;
+    }
+    * {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    main {
+      padding: 0 !important;
+    }
+    section {
+      padding: 0 !important;
+    }
+  }
+</style>
+
+<script is:inline>
+  (function () {
+    var dataEl = document.getElementById('scorecard-data');
+    var waEl = document.getElementById('wa-config');
+    var form = document.querySelector('[data-scorecard-form]');
+    if (!dataEl || !form || !waEl) return;
+
+    var DATA = JSON.parse(dataEl.textContent);
+    var WA = JSON.parse(waEl.textContent);
+    var Q = DATA.questions;
+    var MAX_PER = DATA.meta.maxScorePerQuestion;
+
+    var RISK_ORDER = { critical: 0, high: 1, medium: 2, low: 3 };
+    var SIGNAL_COLOR = { risk: 'var(--risk)', warn: 'var(--warn)', good: 'var(--good)' };
+
+    var bar = document.querySelector('[data-score-bar]');
+    var results = document.querySelector('[data-results]');
+    var jump = document.querySelector('[data-jump-results]');
+
+    bar.removeAttribute('hidden');
+
+    // Highlight the selected option and advance to the next unanswered question.
+    form.addEventListener('change', function (ev) {
+      var input = ev.target;
+      if (input.type !== 'radio') return;
+
+      var fs = input.closest('fieldset');
+      fs.querySelectorAll('[data-option]').forEach(function (l) {
+        var checked = l.querySelector('input').checked;
+        l.style.borderColor = checked ? 'var(--accent)' : 'var(--border)';
+        l.style.background = checked ? 'var(--accent-soft)' : 'transparent';
+      });
+
+      var num = fs.querySelector('[data-qnum]');
+      num.style.background = 'var(--accent)';
+      num.style.color = 'var(--accent-fg)';
+
+      recompute();
+
+      // Nudge to the next unanswered question — keeps momentum without hiding anything.
+      var all = Array.from(form.querySelectorAll('fieldset'));
+      var idx = all.indexOf(fs);
+      for (var i = idx + 1; i < all.length; i++) {
+        if (!all[i].querySelector('input:checked')) {
+          var top = all[i].getBoundingClientRect().top + window.scrollY - 150;
+          window.scrollTo({ top: top, behavior: 'smooth' });
+          break;
+        }
+      }
+    });
+
+    function collect() {
+      var answered = 0;
+      var total = 0;
+      var max = 0;
+      var perPillar = {};
+      var gaps = [];
+
+      DATA.pillars.forEach(function (p) {
+        perPillar[p.id] = { got: 0, max: 0, name: p.name };
+      });
+
+      Q.forEach(function (q) {
+        var checked = form.querySelector('input[name="' + q.id + '"]:checked');
+        var w = q.weight;
+        max += w * MAX_PER;
+        perPillar[q.pillar].max += w * MAX_PER;
+
+        if (checked) {
+          answered++;
+          var v = Number(checked.value);
+          total += w * v;
+          perPillar[q.pillar].got += w * v;
+          // 0 or 1 out of 3 is a real gap worth reporting.
+          if (v <= 1) gaps.push({ q: q, value: v });
+        }
+      });
+
+      gaps.sort(function (a, b) {
+        var r = RISK_ORDER[a.q.gap.risk] - RISK_ORDER[b.q.gap.risk];
+        if (r !== 0) return r;
+        if (a.value !== b.value) return a.value - b.value;
+        return b.q.weight - a.q.weight;
+      });
+
+      return {
+        answered: answered,
+        complete: answered === Q.length,
+        score: max ? Math.round((total / max) * 100) : 0,
+        perPillar: perPillar,
+        gaps: gaps,
+      };
+    }
+
+    function bandFor(score) {
+      for (var i = 0; i < DATA.bands.length; i++) {
+        if (score >= DATA.bands[i].min && score <= DATA.bands[i].max) return DATA.bands[i];
+      }
+      return DATA.bands[0];
+    }
+
+    function colorFor(score) {
+      if (score < 56) return 'var(--risk)';
+      if (score < 76) return 'var(--warn)';
+      return 'var(--good)';
+    }
+
+    var state = null;
+
+    function recompute() {
+      state = collect();
+
+      // Live bar
+      document.querySelector('[data-live-score]').textContent = String(state.score);
+      document.querySelector('[data-answered]').textContent = String(state.answered);
+      var lb = document.querySelector('[data-live-bar]');
+      lb.style.width = Math.round((state.answered / Q.length) * 100) + '%';
+      lb.style.background = colorFor(state.score);
+
+      if (state.complete) {
+        jump.removeAttribute('hidden');
+        renderResults();
+      }
+    }
+
+    function renderResults() {
+      results.removeAttribute('hidden');
+
+      var band = bandFor(state.score);
+      var col = colorFor(state.score);
+
+      var CIRC = 527.8;
+      var dial = results.querySelector('[data-dial]');
+      dial.style.strokeDashoffset = String(CIRC - (CIRC * state.score) / 100);
+      dial.setAttribute('stroke', col);
+      results.querySelector('[data-dial-text]').textContent = String(state.score);
+
+      var label = results.querySelector('[data-band-label]');
+      label.textContent = band.label;
+      label.style.color = col;
+      results.querySelector('[data-band-verdict]').textContent = band.verdict;
+      results.querySelector('[data-band-rec]').textContent = band.recommendation;
+
+      DATA.pillars.forEach(function (p) {
+        var row = results.querySelector('[data-pillar-row="' + p.id + '"]');
+        var d = state.perPillar[p.id];
+        var pct = d.max ? Math.round((d.got / d.max) * 100) : 0;
+        row.querySelector('[data-pillar-score]').textContent = pct + '%';
+        var pbar = row.querySelector('[data-pillar-bar]');
+        pbar.style.width = pct + '%';
+        pbar.style.background = colorFor(pct);
+      });
+
+      // Gaps
+      var list = results.querySelector('[data-gaps]');
+      var none = results.querySelector('[data-no-gaps]');
+      list.innerHTML = '';
+      if (!state.gaps.length) {
+        none.removeAttribute('hidden');
+      } else {
+        none.setAttribute('hidden', '');
+        state.gaps.forEach(function (g, i) {
+          var li = document.createElement('li');
+          li.className = 'rounded-xl border p-5';
+          li.style.background = 'var(--bg)';
+
+          var riskColor =
+            g.q.gap.risk === 'critical' || g.q.gap.risk === 'high' ? 'var(--risk)' : 'var(--warn)';
+
+          li.innerHTML =
+            '<div class="flex items-start justify-between gap-4">' +
+            '<div class="min-w-0"><p class="text-xs font-semibold uppercase tracking-wider" style="color:' +
+            riskColor +
+            '">' +
+            g.q.gap.risk +
+            ' risk · ' +
+            escapeHtml(state.perPillar[g.q.pillar].name) +
+            '</p>' +
+            '<h4 class="mt-1.5 text-[16px] font-semibold">' +
+            (i + 1) +
+            '. ' +
+            escapeHtml(g.q.gap.title) +
+            '</h4></div></div>' +
+            '<p class="mt-2.5 text-sm leading-relaxed" style="color: var(--fg-muted)">' +
+            escapeHtml(g.q.gap.consequence) +
+            '</p>' +
+            '<p class="mt-3 text-sm leading-relaxed"><strong>Fix:</strong> <span style="color: var(--fg-muted)">' +
+            escapeHtml(g.q.gap.fix) +
+            '</span></p>' +
+            '<p class="mt-2 font-mono text-xs" style="color: var(--fg-subtle)">Effort: ' +
+            escapeHtml(g.q.gap.effort) +
+            '</p>';
+          list.appendChild(li);
+        });
+      }
+
+      renderExecSummary(band, col);
+      updateHandoff();
+    }
+
+    /**
+     * Executive summary.
+     *
+     * Three computed things a manager needs and the technical list does not give them:
+     * the business consequence of each critical gap, a real total of engineering days,
+     * and a single recommended decision. Effort totals come from machine-readable
+     * effortDays rather than parsing the prose effort strings.
+     */
+    function execData() {
+      var criticals = state.gaps.filter(function (g) {
+        return g.q.gap.risk === 'critical';
+      });
+      var highs = state.gaps.filter(function (g) {
+        return g.q.gap.risk === 'high';
+      });
+
+      // Organisational gaps (effortDays 0) are not engineering work — count them separately
+      // so the day total stays honest.
+      var eng = state.gaps.filter(function (g) {
+        return (g.q.gap.effortDays || {}).max > 0;
+      });
+      var org = state.gaps.filter(function (g) {
+        return (g.q.gap.effortDays || {}).max === 0;
+      });
+
+      var min = 0;
+      var max = 0;
+      eng.forEach(function (g) {
+        min += g.q.gap.effortDays.min;
+        max += g.q.gap.effortDays.max;
+      });
+
+      // Exposure: criticals first, then highs, capped at four so it stays readable.
+      var exposure = criticals.concat(highs).slice(0, 4);
+
+      return {
+        criticals: criticals,
+        highs: highs,
+        exposure: exposure,
+        engCount: eng.length,
+        orgCount: org.length,
+        minDays: min,
+        maxDays: max,
+      };
+    }
+
+    function decisionLine(score, criticalCount) {
+      var bands = DATA.decisions || [];
+      for (var i = 0; i < bands.length; i++) {
+        if (criticalCount <= bands[i].maxCritical && score >= bands[i].minScore) return bands[i].line;
+      }
+      return bands.length ? bands[bands.length - 1].line : '';
+    }
+
+    function renderExecSummary(band, col) {
+      var e = execData();
+      var root = document.querySelector('[data-exec-summary]');
+
+      root.querySelector('[data-exec-score]').textContent = String(state.score);
+      var bandEl = root.querySelector('[data-exec-band]');
+      bandEl.textContent = band.label;
+      bandEl.style.color = col;
+      root.style.borderColor = col;
+
+      root.querySelector('[data-exec-verdict]').textContent = band.verdict;
+
+      // Exposure list
+      var ul = root.querySelector('[data-exec-exposure]');
+      var wrap = root.querySelector('[data-exec-exposure-wrap]');
+      ul.innerHTML = '';
+      if (!e.exposure.length) {
+        wrap.style.display = 'none';
+      } else {
+        wrap.style.display = '';
+        e.exposure.forEach(function (g) {
+          var li = document.createElement('li');
+          li.className = 'flex gap-2.5';
+          var dot = document.createElement('span');
+          dot.setAttribute('aria-hidden', 'true');
+          dot.style.color = g.q.gap.risk === 'critical' ? 'var(--risk)' : 'var(--warn)';
+          dot.textContent = '•';
+          var txt = document.createElement('span');
+          txt.style.color = 'var(--fg-muted)';
+          txt.textContent = g.q.gap.businessRisk;
+          li.appendChild(dot);
+          li.appendChild(txt);
+          ul.appendChild(li);
+        });
+      }
+
+      // Effort
+      var effortEl = root.querySelector('[data-exec-effort]');
+      if (!e.engCount && !e.orgCount) {
+        effortEl.textContent = 'Nothing outstanding. No remediation work indicated.';
+      } else {
+        var parts = [];
+        if (e.engCount) {
+          parts.push(
+            'Roughly ' +
+              e.minDays +
+              '–' +
+              e.maxDays +
+              ' working days of engineering to close ' +
+              e.engCount +
+              ' gap' +
+              (e.engCount === 1 ? '' : 's') +
+              (e.criticals.length
+                ? ', of which ' + e.criticals.length + ' ' + (e.criticals.length === 1 ? 'is' : 'are') + ' critical'
+                : '') +
+              '.'
+          );
+        }
+        if (e.orgCount) {
+          parts.push(
+            e.orgCount === 1
+              ? 'One further gap is an organisational decision rather than engineering work.'
+              : e.orgCount + ' further gaps are organisational decisions rather than engineering work.'
+          );
+        }
+        parts.push('These are days, not quarters — the work is unglamorous rather than hard.');
+        effortEl.textContent = parts.join(' ');
+      }
+
+      root.querySelector('[data-exec-decision]').textContent = decisionLine(
+        state.score,
+        e.criticals.length
+      );
+    }
+
+    /** Plain-text version, formatted to be pasted into an email or Slack message. */
+    function execText() {
+      var e = execData();
+      var band = bandFor(state.score);
+      var lines = [
+        'AGENT PRODUCTION READINESS — EXECUTIVE SUMMARY',
+        'Score: ' + state.score + '/100 (' + band.label + ')',
+        '',
+        'WHAT THIS MEANS',
+        band.verdict,
+        '',
+      ];
+      if (e.exposure.length) {
+        lines.push('WHAT WE ARE EXPOSED TO');
+        e.exposure.forEach(function (g) {
+          lines.push('- ' + g.q.gap.businessRisk + ' [' + g.q.gap.risk + ']');
+        });
+        lines.push('');
+      }
+      lines.push('WHAT IT TAKES TO FIX');
+      lines.push(
+        document.querySelector('[data-exec-effort]').textContent
+      );
+      lines.push('');
+      lines.push('RECOMMENDED DECISION');
+      lines.push(decisionLine(state.score, e.criticals.length));
+      lines.push('');
+      lines.push('Assessed with the free scorecard at ' + WA.site + '/scorecard');
+      return lines.join('\n');
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    }
+
+    function weakestPillars() {
+      return DATA.pillars
+        .map(function (p) {
+          var d = state.perPillar[p.id];
+          return { name: p.name, pct: d.max ? Math.round((d.got / d.max) * 100) : 0 };
+        })
+        .filter(function (p) {
+          return p.pct < 70;
+        })
+        .sort(function (a, b) {
+          return a.pct - b.pct;
+        })
+        .map(function (p) {
+          return p.name + ' (' + p.pct + '%)';
+        });
+    }
+
+    function buildMessage() {
+      var band = bandFor(state.score);
+      var stack = (document.querySelector('[data-input-stack]').value || '').trim();
+      var volume = (document.querySelector('[data-input-volume]').value || '').trim();
+
+      var lines = [
+        'Hi Durgesh — I completed the Agent Production Readiness Scorecard on ' +
+          WA.site.replace(/^https?:\/\//, '') +
+          '.',
+        '',
+        'Score: ' + state.score + '/100 (' + band.label + ')',
+        'Weakest areas: ' + (weakestPillars().join(', ') || 'none flagged'),
+      ];
+
+      var top = state.gaps.slice(0, 3).map(function (g) {
+        return g.q.gap.title;
+      });
+      if (top.length) lines.push('Top gaps: ' + top.join('; '));
+
+      // The days-to-fix figure is the most actionable line in the message — it is what
+      // turns "we have problems" into something with a shape someone can approve.
+      var e = execData();
+      if (e.engCount) {
+        lines.push(
+          'Estimated remediation: ' +
+            e.minDays +
+            '–' +
+            e.maxDays +
+            ' engineering days across ' +
+            e.engCount +
+            ' gaps' +
+            (e.criticals.length ? ' (' + e.criticals.length + ' critical)' : '')
+        );
+      }
+      if (stack) lines.push('Stack: ' + stack);
+      if (volume) lines.push('Volume: ' + volume);
+      lines.push('', "I'd like to know which one you'd close first.");
+      return lines.join('\n');
+    }
+
+    function updateHandoff() {
+      var msg = buildMessage();
+      document.querySelector('[data-wa-send]').href = WA.base + encodeURIComponent(msg);
+      document.querySelector('[data-wa-preview]').textContent = msg;
+    }
+
+    ['[data-input-stack]', '[data-input-volume]'].forEach(function (sel) {
+      document.querySelector(sel).addEventListener('input', function () {
+        if (state && state.complete) updateHandoff();
+      });
+    });
+
+    document.querySelector('[data-print]').addEventListener('click', function () {
+      window.print();
+    });
+
+    document.querySelector('[data-copy-exec]').addEventListener('click', function () {
+      var label = document.querySelector('[data-copy-exec-label]');
+      navigator.clipboard.writeText(execText()).then(
+        function () {
+          label.textContent = 'Copied — paste into an email';
+          setTimeout(function () {
+            label.textContent = 'Copy summary to forward';
+          }, 2200);
+        },
+        function () {
+          label.textContent = 'Copy failed';
+        }
+      );
+    });
+
+    document.querySelector('[data-copy]').addEventListener('click', function (ev) {
+      var btn = ev.currentTarget;
+      navigator.clipboard.writeText(buildMessage()).then(
+        function () {
+          var old = btn.textContent;
+          btn.textContent = 'copied';
+          setTimeout(function () {
+            btn.textContent = old;
+          }, 1600);
+        },
+        function () {
+          btn.textContent = 'copy failed';
+        }
+      );
+    });
+
+    // Initialise borders on the unselected options.
+    form.querySelectorAll('[data-option]').forEach(function (l) {
+      l.style.borderColor = 'var(--border)';
+    });
+
+    recompute();
+  })();
+</script>

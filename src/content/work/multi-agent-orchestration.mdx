@@ -1,0 +1,175 @@
+---
+title: 'Multi-agent systems without the spiral'
+cardTitle: 'Multi-agent orchestration in production'
+description: 'Two production agent systems on MCP and CrewAI — a project-management assistant and an autonomous lead-generation pipeline. What multi-agent buys you, what it costs, and the specific cases where a single agent with good tools wins.'
+published: '2026-08-02'
+order: 2
+headlineStat:
+  value: 'MCP + CrewAI'
+  label: 'In production, not a demo'
+role: 'Technical Lead — architecture, agent design, delivery'
+stack:
+  - Python
+  - FastAPI
+  - Model Context Protocol
+  - CrewAI
+  - LangChain
+  - Azure OpenAI
+  - PostgreSQL
+  - Docker
+pillars:
+  - reliability
+  - cost
+keywords:
+  - multi-agent systems
+  - Model Context Protocol
+  - MCP
+  - CrewAI
+  - agent orchestration
+  - tool design
+whatBroke: 'A researcher agent and a qualifier agent disagreed about whether a company was worth pursuing, so the orchestrator asked both again. And again. Nineteen billed model calls to decide one lead was a bad fit.'
+---
+
+import ArchitectureDiagram from '../../components/ArchitectureDiagram.astro';
+
+I have built two multi-agent systems that ran in production rather than in a demo: a
+project-management assistant that let people manage tasks and boards conversationally, and
+an autonomous lead-generation pipeline that researched prospects, enriched company data,
+qualified leads, and drafted personalised outreach.
+
+Both worked. Both taught me that the interesting engineering in multi-agent systems is
+almost entirely about **bounding** them.
+
+## The honest framing first
+
+Multi-agent architectures are oversold. The genuine wins are narrow:
+
+- **Separation of context.** A researcher agent that only sees research context produces
+  better output than one prompt trying to hold research, qualification and writing at once.
+- **Different tools per role,** so no single agent gets a bloated tool list billed on every call.
+- **Independent, parallelisable work** — enriching forty companies concurrently.
+
+Everything else people claim for multi-agent — "emergent collaboration", "self-correcting
+teams" — I have not seen hold up under cost scrutiny. Two agents debating is two agents
+billing. If a single agent with a well-designed tool set can do the job, it will be cheaper,
+faster, and far easier to debug.
+
+<ArchitectureDiagram
+  title="Lead generation pipeline, with the bounds made explicit"
+  caption="The interesting parts are the step ceiling, the structured handoffs, and the fact that agents cannot call each other directly."
+  nodes={[
+    {
+      id: 'trigger',
+      label: 'Trigger & budget',
+      sub: 'FastAPI',
+      detail:
+        'Every run starts with an explicit budget: a maximum step count and a maximum token spend. The run is a bounded resource from the first line, not something that gets bounded later when the bill arrives.',
+      tradeoff:
+        'Occasionally a genuinely complex prospect hits the ceiling and returns partial results. Partial results with a clear reason beat unbounded spend.',
+    },
+    {
+      id: 'orchestrator',
+      label: 'Orchestrator',
+      sub: 'CrewAI, role-based',
+      detail:
+        'A single component owns sequencing. Agents never invoke each other — they return structured output to the orchestrator, which decides what runs next. That keeps the control flow in ordinary code where it can be read and tested.',
+      tradeoff:
+        'Less "autonomous" than agents delegating freely. It is also the difference between a system you can reason about and one you can only observe.',
+    },
+    {
+      id: 'research',
+      label: 'Research agent',
+      sub: 'Narrow tool set',
+      detail:
+        'Gathers public company information. Sees only the tools it needs — search and fetch — so its per-call tool overhead stays small and its failure surface stays narrow.',
+      tradeoff:
+        'Duplicated some capability across agents rather than sharing one fat tool registry. Cheaper per call and much easier to attribute failures.',
+    },
+    {
+      id: 'enrich',
+      label: 'Enrichment',
+      sub: 'Deterministic code',
+      detail:
+        'Firmographic lookups, domain resolution, and dedupe are plain code against APIs. No model involved, because none is needed.',
+      tradeoff:
+        'Unglamorous. Also the most reliable and cheapest stage in the pipeline, and a reminder that the best agent design decision is often to not use an agent.',
+    },
+    {
+      id: 'qualify',
+      label: 'Qualifier agent',
+      sub: 'Structured output only',
+      detail:
+        'Scores fit against defined criteria and returns a strict schema — score, reasons, confidence. Never prose. Downstream code branches on the schema rather than parsing sentences.',
+      tradeoff:
+        'Constrained output loses nuance a human reader might value. It also eliminated an entire class of inconsistency, because there is no room to rephrase a decision.',
+      problem: true,
+    },
+    {
+      id: 'write',
+      label: 'Outreach drafting',
+      sub: 'Human in the loop',
+      detail:
+        'Drafts personalised outreach. Nothing sends automatically — a person reviews and approves. That was a product decision as much as an engineering one.',
+      tradeoff:
+        'Caps throughput at human review capacity. Given that the failure mode is emailing a real prospect something wrong, that cap is a feature.',
+    },
+    {
+      id: 'trace',
+      label: 'Run trace',
+      sub: 'Per-run, step level',
+      detail:
+        'Every step, prompt, tool call and token count is recorded against one run ID, so any decision can be reconstructed after the fact.',
+      tradeoff:
+        'Storage and some latency per step. Without it, diagnosing a bad qualification is guesswork — and bad qualifications are the thing you most need to explain to a sales team.',
+    },
+  ]}
+/>
+
+## What broke
+
+The qualifier agent originally returned prose with a recommendation embedded in it. The
+orchestrator's logic checked whether the recommendation was confident enough to proceed —
+and when it could not tell, it re-ran the research and qualification steps to gather more
+information.
+
+On an ambiguous prospect, that produced a loop. The researcher found slightly different
+information, the qualifier expressed slightly different hedged confidence, and the
+orchestrator asked again. **Nineteen billed model calls to conclude that one company was a
+bad fit** — a conclusion a human reaches in about four seconds.
+
+Three things fixed it, and all three are now defaults for me:
+
+1. **Structured output with an explicit confidence field.** The orchestrator branches on a
+   number, not on its reading of a sentence. Ambiguity became a value the code could handle
+   rather than a condition it could not detect.
+2. **A step ceiling per run.** Bounded before it is needed, not after.
+3. **Repetition detection.** Hash each tool call with its arguments; if the same hash
+   recurs within a run, stop and escalate rather than hoping the next attempt differs.
+
+I have since written this failure up as a named category —
+[the runaway loop](/tools/failure-taxonomy#agent-loops-forever) — because I have now seen
+it in several other codebases with the same root cause.
+
+## What MCP actually changed
+
+For the project-management assistant, I used Model Context Protocol to expose tools — task
+manager, board manager, status handler — as modular servers rather than functions wired
+into the agent.
+
+The real benefit was not the protocol itself. It was that **the tool boundary became a
+place where validation, authorisation and logging naturally lived.** When tools are
+ordinary in-process functions, it is tempting to pass model output straight through. When
+they are a separate server with a schema, validating input is the obvious thing to do.
+
+The cost: another deployment surface, and the tool schemas count against input tokens on
+every call. For a system with many tools, trimming those schemas was a measurable cost win.
+
+## What I would tell you before you build one
+
+Start with a single agent and good tools. Add a second agent only when you can name the
+specific context separation or parallelism it buys you. When you do:
+
+- Agents return structured data to an orchestrator; they do not call each other.
+- Every run has a step ceiling and a token budget before it is ever launched.
+- Every agent gets only the tools its role needs.
+- One trace ID spans the whole run, or you will not be able to explain anything.

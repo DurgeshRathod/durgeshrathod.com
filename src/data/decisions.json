@@ -1,0 +1,628 @@
+{
+  "meta": {
+    "version": "1.0",
+    "updated": "2026-08-02",
+    "title": "For engineering leaders",
+    "description": "Decision support for the people who own the budget: what an agent audit should cover, what to ask your team before launch, build-or-buy, what to report upward, and when you do not need outside help.",
+    "premise": "Most writing about AI reliability is aimed at the engineer doing the work. These pages are aimed at whoever has to decide whether the work happens, what it should cost, and how to tell it worked. Each one is a decision you own, with the framework I would use and the numbers to sanity-check it.",
+    "forwardNote": "Written to be forwarded. If you are the engineer who found this, send the relevant one up — it is framed for the person who has to approve the work."
+  },
+  "decisions": [
+    {
+      "slug": "what-an-ai-agent-audit-covers",
+      "name": "What an agent audit should cover",
+      "order": 1,
+      "h1": "What an AI agent audit should cover — and what to refuse to pay for",
+      "tagline": "How to scope, price and sanity-check a reliability engagement before you sign anything.",
+      "description": "What belongs in an AI agent reliability audit, what is padding, how price should track scope, and the deliverables to insist on. Written for whoever approves the spend.",
+      "keywords": [
+        "AI agent audit",
+        "what does an AI audit include",
+        "LLM audit scope",
+        "AI consulting cost",
+        "AI reliability assessment"
+      ],
+      "audience": [
+        "VP Engineering or CTO approving the spend",
+        "Founders buying technical help for the first time",
+        "Engineering managers writing the internal business case"
+      ],
+      "theQuestion": "We are considering paying someone to audit our agent. What should we actually be getting?",
+      "answerFirst": "A useful audit produces four artefacts you keep: a failure taxonomy specific to your agent, a cost and latency profile, an eval suite wired to your real traffic, and a prioritised fix list with effort estimates. If a proposal does not name deliverables you own afterwards, you are buying a slide deck. Expect fixed scope and a fixed price — hourly billing on a diagnostic engagement transfers all the risk to you.",
+      "body": [
+        "The failure mode of buying technical consulting is paying for observation. Someone spends two weeks reading your code and hands you a document describing problems you already suspected, with no mechanism to detect them recurring. It reads well, it is accurate, and nothing about your system has changed.",
+        "The test for whether an audit is worth buying is simple: what runs in your CI on the Monday after it ends? If the answer is nothing, you bought a report. The artefacts matter more than the analysis, because the artefacts are what keep working once the consultant leaves.",
+        "The second test is whether the work is scoped or open-ended. A diagnostic engagement has a knowable shape — there are only so many places an agent can be failing — so it can be quoted at a fixed price. An hourly quote on a two-week diagnostic means the person quoting has not decided what they are doing, and you are absorbing that uncertainty."
+      ],
+      "asset": {
+        "kind": "table",
+        "title": "In scope, out of scope, and padding",
+        "intro": "Use this to read a proposal. The middle column is where most engagements quietly lose value.",
+        "columns": ["Item", "Verdict", "Why"],
+        "rows": [
+          [
+            "Failure taxonomy specific to your agent",
+            "Insist on it",
+            "Named categories are what make failures countable. Without them you cannot prioritise or measure improvement."
+          ],
+          [
+            "Eval suite wired to your real traffic",
+            "Insist on it",
+            "The one deliverable that keeps paying after the engagement. If it is not included, ask why."
+          ],
+          [
+            "Cost and latency profile per operation",
+            "Insist on it",
+            "Usually finds recoverable spend that offsets a meaningful share of the fee."
+          ],
+          [
+            "Prioritised fix list with effort estimates",
+            "Insist on it",
+            "A list without effort estimates cannot be turned into a sprint plan, which means it will not be actioned."
+          ],
+          [
+            "Recorded walkthrough with your engineers",
+            "Insist on it",
+            "Knowledge transfer, and it protects you when the person who attended leaves."
+          ],
+          [
+            "Implementation of the fixes",
+            "Separate engagement",
+            "Reasonable to buy, but do not let it be bundled vaguely into a diagnostic — the scope and price should be quoted after findings, not before."
+          ],
+          [
+            "Model selection or benchmarking advice",
+            "Usually padding",
+            "Cheap to produce, rarely your actual problem, and it will be stale in three months."
+          ],
+          [
+            "Prompt rewriting as the headline deliverable",
+            "Red flag",
+            "Prompt tuning without an eval suite is unmeasurable by definition. If this is the main offer, the engagement cannot prove it worked."
+          ],
+          [
+            "A maturity model or capability matrix",
+            "Padding",
+            "Generates a slide, changes nothing. If it appears without the artefacts above, it is filling space."
+          ],
+          [
+            "Access to production credentials",
+            "Refuse",
+            "An agent can be audited from code, traces and anonymised samples. Anyone insisting on production write access should explain precisely why."
+          ]
+        ],
+        "note": "A good heuristic: for every item in a proposal, ask \"what do we still have in three months?\" Anything that answers \"a document\" should be a small part of the price, not the substance of it."
+      },
+      "secondAsset": {
+        "kind": "table",
+        "title": "How price should track scope",
+        "intro": "Not market rates — a logic for checking whether a quote is coherent. What should move a price is the amount of system and the amount of missing groundwork, nothing else.",
+        "columns": ["Situation", "What that implies", "Reasonable shape"],
+        "rows": [
+          [
+            "One agent, traces already exist, clear question",
+            "Days of work, not weeks. Most of the time goes into evals.",
+            "Lower end of a fixed range, 1 week"
+          ],
+          [
+            "One agent, no tracing at all",
+            "Instrumentation has to happen before anything can be measured.",
+            "Add several days; expect tracing as a named deliverable"
+          ],
+          [
+            "Several agents or a multi-agent system",
+            "More surfaces, more tool boundaries, more failure paths.",
+            "Upper end of a fixed range, 2 weeks"
+          ],
+          [
+            "Regulated data or a compliance deadline",
+            "Isolation and audit-trail work, and evidence you can show a reviewer.",
+            "Scoped separately — the deliverable is evidence, not just fixes"
+          ],
+          [
+            "Quote varies with your company size",
+            "You are being priced on ability to pay, not on scope.",
+            "Ask what changes in the work. If nothing does, that is your answer."
+          ],
+          [
+            "Quote is hourly with an open end",
+            "The scope has not been decided; you carry the overrun risk.",
+            "Ask for a fixed price on a fixed scope instead"
+          ]
+        ],
+        "note": "For reference, my own audit is $4,000–6,000 for one to two weeks, and the range moves on scope only — not on where you are, how much you raised, or how much you appear able to pay."
+      },
+      "relatedSolutions": ["agent-eval-suites", "llm-observability"],
+      "faq": [
+        {
+          "q": "What should an AI agent audit cost?",
+          "a": "It should be a fixed price tied to a fixed scope, and the number should move only with the amount of system being examined and how much groundwork is missing. My own is $4,000–6,000 for one to two weeks.\n\nWhat should make you pause is a quote that changes with your company's size or funding, or an hourly rate with no ceiling on a diagnostic engagement — that means the scope has not been decided and you are absorbing the uncertainty."
+        },
+        {
+          "q": "How do I know if the audit was worth it?",
+          "a": "Ask what runs in your CI the Monday after it ends. If the answer is an eval suite that fails the build when agent quality drops, you bought something durable. If the answer is nothing, you bought a report.\n\nThe secondary test is whether the fix list has effort estimates. A list of problems without estimates cannot be converted into a sprint plan, which means in practice it will not be actioned."
+        },
+        {
+          "q": "Can our own team do this instead of hiring someone?",
+          "a": "Often yes, and you should check before spending anything. Run the free scorecard — it takes four minutes and produces a ranked gap list with a fix and an effort estimate for each.\n\nIf the gaps are clear and someone on your team has the time, do it internally. Hire outside help when the gaps are clear but nobody has the time, or when you want it done by someone who has done it before and will not spend three weeks learning."
+        },
+        {
+          "q": "Should we give a consultant access to production?",
+          "a": "No, and be wary of anyone who requires it. An agent can be audited from source code, existing traces or logs, and anonymised samples of real inputs.\n\nRead access to the relevant repositories and whatever observability exists is enough. If someone insists on production credentials, ask them to name the specific finding they cannot reach without them."
+        }
+      ]
+    },
+    {
+      "slug": "questions-to-ask-before-launch",
+      "name": "Questions to ask before launch",
+      "order": 2,
+      "h1": "Fourteen questions to ask your AI team before launch",
+      "tagline": "With the answer that should reassure you, and the answer that should worry you.",
+      "description": "A launch-readiness question list for engineering leaders shipping an AI agent, each with a good answer and a warning-sign answer. Designed to be used in a review meeting.",
+      "keywords": [
+        "AI launch readiness checklist",
+        "AI agent production readiness",
+        "questions to ask AI team",
+        "AI go-live review",
+        "LLM launch checklist"
+      ],
+      "audience": [
+        "Engineering leaders running a go-live review",
+        "Founders shipping their first customer-facing agent",
+        "Product leaders accountable for an AI feature"
+      ],
+      "theQuestion": "We are about to ship an agent to customers. What should I be asking, and what answers should worry me?",
+      "answerFirst": "Ask about four things, in this order: can you prove it still works after a change, can you explain a failure after the fact, is spend bounded, and does someone own it. The single most useful question is \"if you changed a prompt today, what would tell you something broke?\" — if the answer is \"a customer would tell us\", you are not ready to launch, regardless of how well the demo goes.",
+      "body": [
+        "You are unlikely to be able to evaluate an agent's implementation directly, and you do not need to. What you can evaluate is whether the team has the machinery to know when it is wrong — and that is a set of questions with unambiguous good and bad answers.",
+        "The pattern to listen for is confidence without measurement. \"It works really well\" is not an answer to \"how do you know\". Teams with real evals answer with numbers and caveats. Teams without them answer with anecdotes, and often genuinely believe the anecdotes, because nothing has contradicted them yet.",
+        "Use these in a review rather than sending them as a document. The quality of the hesitation tells you as much as the answer does."
+      ],
+      "asset": {
+        "kind": "table",
+        "title": "The fourteen questions",
+        "intro": "Grouped by what they protect. Read the middle column aloud if you want the conversation to go faster.",
+        "columns": ["Ask", "Reassuring answer", "Worrying answer"],
+        "rows": [
+          [
+            "If you changed a prompt today, what would tell you something broke?",
+            "An eval suite runs in CI and blocks the merge below a threshold",
+            "\"We'd test it manually\" or \"a customer would tell us\""
+          ],
+          [
+            "Where did our test cases come from?",
+            "Sampled from real production traffic, including malformed inputs",
+            "\"We wrote them\" — team-authored cases miss what real users do"
+          ],
+          [
+            "What is it supposed to refuse to do, and do we test that?",
+            "A refusal set exists and is part of the suite",
+            "A pause, then a description of what it is supposed to do"
+          ],
+          [
+            "Can you show me a single bad run end to end?",
+            "Pulls up a trace with every step, prompt, tool call and token count",
+            "Greps application logs, or cannot reproduce it"
+          ],
+          [
+            "What are the ways this fails, by name?",
+            "Named categories with rates attached",
+            "Individual anecdotes, described case by case"
+          ],
+          [
+            "What does one conversation cost us?",
+            "A number, attributable per feature",
+            "The monthly provider invoice total"
+          ],
+          [
+            "What stops a runaway loop over a weekend?",
+            "Per-request token caps, per-user limits, a tested global breaker",
+            "\"We have billing alerts\" — those fire after the money is gone"
+          ],
+          [
+            "What is our p95 latency, not the average?",
+            "Per operation, with an alert threshold",
+            "An average, or \"it feels fast\""
+          ],
+          [
+            "What happens when a tool returns something unexpected?",
+            "Schema validation rejects it; the rejection is logged",
+            "\"The model handles it\""
+          ],
+          [
+            "Could this agent access data it should not?",
+            "Identity from the session, enforced in code, tested adversarially",
+            "\"The prompt tells it not to\""
+          ],
+          [
+            "Has anyone tried to break it on purpose?",
+            "Prompt injection and boundary cases are permanent test cases",
+            "\"Not yet\""
+          ],
+          [
+            "Which model version are we on, exactly?",
+            "A pinned version, logged per request",
+            "A floating alias — behaviour can change with no deploy"
+          ],
+          [
+            "If a customer disputes an output next quarter, can we reconstruct it?",
+            "Trace retention covers it, including prompt version",
+            "\"We'd look at the logs\""
+          ],
+          [
+            "Who owns whether this works?",
+            "A named person with time allocated and metrics they report",
+            "\"The team does\" — which means nobody does"
+          ]
+        ],
+        "note": "You do not need every reassuring answer to launch. You do need to know which ones you are missing, and to have decided that deliberately rather than discovered it later."
+      },
+      "secondAsset": {
+        "kind": "checklist",
+        "title": "The four you should not launch without",
+        "intro": "If you are short on time, these are the ones where a bad answer means real damage rather than a bad experience.",
+        "items": [
+          "Tool inputs are validated before execution — this is the failure mode that writes to the wrong record or emails the wrong customer, rather than merely giving a poor answer",
+          "There is a hard ceiling on spend per request and per user, tested — not a billing alert, which notifies you after the money is gone",
+          "Some kind of eval suite exists, even a small one, so a change can be shown not to have broken things",
+          "One person is accountable for whether it works, with time allocated to it"
+        ],
+        "note": "Everything else on the longer list can be added after launch. These four are cheap, take days rather than weeks, and are the difference between a bad week and an incident with a customer's name on it."
+      },
+      "relatedSolutions": ["agent-eval-suites", "llm-observability", "multi-tenant-ai-isolation"],
+      "faq": [
+        {
+          "q": "What should I ask my team before launching an AI agent?",
+          "a": "Start with: \"if you changed a prompt today, what would tell you something broke?\" It is the single most diagnostic question, because the answer reveals whether any measurement exists at all. \"A customer would tell us\" means you are not ready.\n\nThen cover the other three areas: can you reproduce a failure after the fact, is spend bounded by something that fails closed, and is one named person accountable for quality."
+        },
+        {
+          "q": "How do I evaluate AI work when I am not an AI engineer?",
+          "a": "You do not evaluate the implementation, you evaluate whether the machinery to detect being wrong exists. That is entirely assessable without deep AI knowledge — you are asking about tests, tracing, cost ceilings and ownership, which are the same things you would ask about any production service.\n\nListen for confidence without measurement. \"It works really well\" is not an answer to \"how do you know\"."
+        },
+        {
+          "q": "Is it ever reasonable to launch without an eval suite?",
+          "a": "Yes — for a limited internal rollout, or a small pilot where you can read most outputs by hand and the cost of being wrong is low.\n\nWhat is not reasonable is launching to customers without one and calling that a considered decision. If you are doing it, do it knowingly, with a date by which the suite exists, and treat the first two weeks of real traffic as the dataset you build it from."
+        },
+        {
+          "q": "Our demo is impressive. Why is that not enough?",
+          "a": "Because a demo is a sample of inputs chosen by people who know how the system works. Real inputs are terse, misspelled, contradictory, multilingual and occasionally adversarial, and the gap between those two distributions is where agents fail.\n\nAn impressive demo tells you the capability exists. It tells you nothing about the failure rate on the inputs you have not imagined."
+        }
+      ]
+    },
+    {
+      "slug": "build-or-buy-llm-observability",
+      "name": "Build or buy: observability",
+      "order": 3,
+      "h1": "Build or buy: LLM observability",
+      "tagline": "The decision costs more in engineering time than in licence fees, which is the part most comparisons omit.",
+      "description": "A build-versus-buy framework for LLM observability aimed at engineering leaders: where each option genuinely wins, the total cost of ownership including hidden engineering time, and the conditions that should decide it.",
+      "keywords": [
+        "build vs buy LLM observability",
+        "LLM observability tools",
+        "agent tracing platform",
+        "LLM monitoring cost",
+        "self-hosted LLM observability"
+      ],
+      "audience": [
+        "Engineering leaders choosing a tracing approach",
+        "Platform teams that already run observability infrastructure",
+        "CTOs with data residency or procurement constraints"
+      ],
+      "theQuestion": "Do we adopt an LLM observability product, extend what we already run, or build our own?",
+      "answerFirst": "Buy, unless you have a hard data-residency requirement or an existing observability platform with a team who owns it — in which case extend that. Building from scratch is almost never right: the initial version takes days, and the maintenance you did not budget for is what actually costs you. What matters far more than the vendor choice is field coverage, because a tool without cost, validity and stop-reason fields cannot answer the questions you will ask it.",
+      "body": [
+        "The comparison people run is licence cost against zero, which makes building look free. The real comparison is licence cost against engineering time — and specifically against maintenance time, which is where home-built observability quietly consumes a quarter of someone's capacity forever.",
+        "The initial build genuinely is easy. Emitting spans with prompt, response, tokens and latency is a few days of work and it feels like a win. What follows is a trace viewer nobody likes using, retention and storage decisions, search that does not scale, and a slow realisation that you are maintaining an internal product with one grudging maintainer and no roadmap.",
+        "There is one case where building is correct: you already run a mature observability platform, a team owns it, and LLM spans are a schema addition rather than a new system. That is extending, not building, and it is genuinely cheaper than adopting a second vendor.",
+        "The decision that actually matters is not the vendor. It is whether whatever you pick captures the fields that make cost and correctness debuggable — and most teams discover the gaps only when they need an answer they cannot get."
+      ],
+      "asset": {
+        "kind": "table",
+        "title": "Where each option genuinely wins",
+        "intro": "Pick the row that describes you rather than comparing feature lists.",
+        "columns": ["Your situation", "Do this", "Because"],
+        "rows": [
+          [
+            "No existing observability practice, small team",
+            "Buy managed",
+            "You need answers this month, not a platform project. Setup is hours."
+          ],
+          [
+            "Hard data-residency or air-gap requirement",
+            "Self-host an open-source tool",
+            "Gets you the product without the data leaving. Budget for someone to run it."
+          ],
+          [
+            "Mature observability platform with an owning team",
+            "Extend it",
+            "LLM spans become a schema addition. Cheapest real option, and one pane of glass."
+          ],
+          [
+            "Procurement will take six months",
+            "Self-host now, revisit later",
+            "Six months without tracing costs more than the tool. Do not wait."
+          ],
+          [
+            "Highly unusual agent architecture",
+            "Buy anyway, supplement",
+            "Use the tool for what fits and add custom spans. Rebuilding the viewer is not the win."
+          ],
+          [
+            "\"We could build this in a sprint\"",
+            "Buy",
+            "You could build the first version in a sprint. The sprint is not the cost."
+          ]
+        ],
+        "note": "Notice that \"build from scratch\" is not the answer in any row. That is deliberate — I have not yet seen a case where a from-zero build beat buying or extending, once maintenance was counted honestly."
+      },
+      "secondAsset": {
+        "kind": "table",
+        "title": "The costs each option actually carries",
+        "intro": "The line items that get left out of the business case. Engineering time is the dominant term in every column and is usually the one nobody prices.",
+        "columns": ["Cost", "Buy managed", "Self-host", "Build"],
+        "rows": [
+          ["Initial setup", "Hours", "Days", "Days — deceptively cheap"],
+          ["Licence or infrastructure", "Per-trace or seat pricing", "Infrastructure only", "Storage only"],
+          ["Ongoing maintenance", "None", "Upgrades, storage, uptime", "It is now an internal product"],
+          ["Trace viewer and search", "Included", "Included", "You build and maintain it"],
+          ["Eval integration", "Usually included", "Usually included", "Build it too"],
+          ["Onboarding a new engineer", "Documented product", "Documented product", "Tribal knowledge"],
+          ["What happens when the owner leaves", "Nothing", "Find a new operator", "Quiet decay, then a rebuild"],
+          ["Opportunity cost", "Low", "Medium", "High — this is the real number"]
+        ],
+        "note": "The last row decides it. Engineering time spent on an internal trace viewer is time not spent on the product, and the comparison is rarely made explicitly enough for that to be obvious."
+      },
+      "relatedSolutions": ["llm-observability", "agent-eval-suites"],
+      "faq": [
+        {
+          "q": "Should we build or buy LLM observability?",
+          "a": "Buy, unless you have a hard data-residency requirement — in which case self-host an open-source option — or you already run a mature observability platform with a team who owns it, in which case extend that.\n\nBuilding from scratch is almost never right. The first version takes days, which is what makes it tempting; the maintenance, the trace viewer, the search and the onboarding cost are what you have not budgeted."
+        },
+        {
+          "q": "Which LLM observability tool is best?",
+          "a": "Field coverage matters far more than vendor. Langfuse, LangSmith, Braintrust, Arize Phoenix and plain OpenTelemetry can all carry what you need — a tool with complete fields beats a better tool with gaps.\n\nDecide on data residency and pricing model rather than features, because the features converge and those two constraints do not."
+        },
+        {
+          "q": "Is OpenTelemetry enough?",
+          "a": "Technically yes, and if you already run OpenTelemetry it is the lowest-friction path — LLM spans are conventions on top of ordinary tracing.\n\nWhat you give up is the purpose-built interface: prompt diffing, replay, and eval integration. The practical test is whether your team will open a tracing UI unprompted. If they already live in traces, OpenTelemetry is fine. If not, a dedicated tool gets used, and a tool that gets used beats a better one that does not."
+        },
+        {
+          "q": "How much should we budget for LLM observability?",
+          "a": "Budget engineering time first, licence cost second — the ratio surprises people. Adoption is hours of setup plus a few days to instrument properly. Self-hosting adds an ongoing operational load that needs a named owner.\n\nBuilding from scratch is where budgets break: not the initial days, but the standing maintenance that never appears in the original estimate."
+        }
+      ]
+    },
+    {
+      "slug": "agent-metrics-for-leadership",
+      "name": "Metrics worth reporting upward",
+      "order": 4,
+      "h1": "Five agent metrics worth reporting upward",
+      "tagline": "And four that look impressive while telling you nothing.",
+      "description": "The AI agent metrics an engineering leader should track and report to executives or a board, with definitions and targets — plus the vanity metrics to stop reporting.",
+      "keywords": [
+        "AI metrics for executives",
+        "LLM KPIs",
+        "agent reliability metrics",
+        "AI reporting to board",
+        "LLM quality metrics"
+      ],
+      "audience": [
+        "Engineering leaders reporting to a CEO or board",
+        "Product leaders accountable for an AI feature",
+        "Anyone asked \"how is the AI working?\" and lacking a real answer"
+      ],
+      "theQuestion": "What should I actually be tracking and reporting about our agent?",
+      "answerFirst": "Five: cost per conversation, eval pass rate, failure rate by named category, p95 latency per operation, and containment or escalation rate. Those five answer every question an executive asks — is it working, is it getting better, what does it cost, and is it getting worse — and each one is a leading indicator rather than a post-mortem. Stop reporting total requests, total spend and model benchmark scores; none of them tell you whether the thing works.",
+      "body": [
+        "The reason \"how is the AI working?\" is hard to answer is that most teams track volume and spend, which describe usage rather than quality. You can serve a million requests badly.",
+        "The five below share a property: each is a rate or a per-unit number, so it stays meaningful as you grow and it moves before an incident rather than after. Totals only tell you what already happened.",
+        "One practical note on reporting: pair each metric with its trend, not its absolute value. An eval pass rate of 82% means nothing on its own. Eighty-two percent and falling for three weeks is the most important sentence in your update."
+      ],
+      "asset": {
+        "kind": "table",
+        "title": "The five to report",
+        "intro": "Definition, what a healthy value looks like, and the executive question it answers.",
+        "columns": ["Metric", "How to define it", "Answers"],
+        "rows": [
+          [
+            "Cost per conversation",
+            "Total spend divided by completed conversations, attributed by feature and customer",
+            "\"What does this cost us, and does it scale?\" Also the earliest warning of a regression — it moves before anything else does."
+          ],
+          [
+            "Eval pass rate",
+            "Percentage of your eval suite passing, reported per category rather than as one number",
+            "\"Is it getting better or worse?\" The only metric that answers this credibly."
+          ],
+          [
+            "Failure rate by category",
+            "Failures tagged against named categories, as a rate of total runs",
+            "\"What is actually going wrong, and what should we fix first?\" Frequency times severity gives you the priority order."
+          ],
+          [
+            "p95 latency per operation",
+            "95th percentile, per operation type — never an average",
+            "\"Is it fast enough?\" The average hides exactly the runs where users abandon."
+          ],
+          [
+            "Containment or escalation rate",
+            "Share of interactions resolved without a human, or handed off",
+            "\"Is this actually saving us anything?\" The closest thing to a business outcome metric."
+          ]
+        ],
+        "note": "Five is deliberate. A dashboard with thirty metrics is a dashboard nobody reads, and the ones that get dropped are always the leading indicators."
+      },
+      "secondAsset": {
+        "kind": "table",
+        "title": "Stop reporting these",
+        "intro": "Common on AI dashboards, and each one can improve while your product gets worse.",
+        "columns": ["Vanity metric", "Why it misleads", "Report instead"],
+        "rows": [
+          [
+            "Total requests or messages",
+            "Measures usage, not value. Rises when the agent is unhelpful and people retry.",
+            "Containment rate"
+          ],
+          [
+            "Total monthly spend",
+            "Grows with success and with waste identically. Cannot distinguish them.",
+            "Cost per conversation"
+          ],
+          [
+            "Average latency",
+            "Hides the tail where users actually abandon.",
+            "p95 per operation"
+          ],
+          [
+            "Model benchmark scores",
+            "Measures the model on someone else's tasks, not your system on yours.",
+            "Eval pass rate on your own cases"
+          ],
+          [
+            "Thumbs up / down rate",
+            "Very few users rate anything, and those who do are not representative.",
+            "Failure rate by category, from traces"
+          ],
+          [
+            "Uptime",
+            "An agent can be 100% available and consistently wrong.",
+            "Eval pass rate"
+          ]
+        ],
+        "note": "The shared flaw: every one of these can improve while the product degrades. That is the definition of a vanity metric, and it is why \"the numbers look fine\" and \"customers are unhappy\" so often coexist."
+      },
+      "relatedSolutions": ["llm-observability", "agent-eval-suites", "llm-cost-reduction"],
+      "faq": [
+        {
+          "q": "What metrics should I report to my board about our AI?",
+          "a": "Cost per conversation, eval pass rate, failure rate by named category, p95 latency per operation, and containment rate. Together they answer whether it works, whether it is improving, what it costs, and whether it is degrading.\n\nReport each with its trend rather than its absolute value. \"82% and falling for three weeks\" is the sentence that matters; \"82%\" on its own is not information."
+        },
+        {
+          "q": "Why is total LLM spend the wrong thing to track?",
+          "a": "Because it rises with success and with waste in exactly the same way, so it cannot tell you which is happening. Spend doubling because usage doubled is good news; spend doubling because conversation history is unbounded is a bug.\n\nCost per conversation separates them. It is also the earliest warning signal you have — it moves days before anything else does."
+        },
+        {
+          "q": "How do I measure whether an AI agent is actually good?",
+          "a": "Eval pass rate on cases drawn from your own real traffic, reported per category. Nothing else answers the question credibly — model benchmarks measure someone else's tasks, and user ratings come from an unrepresentative few.\n\nIf your team cannot produce this number, that is the finding. It means no one can currently tell whether last month's changes helped."
+        },
+        {
+          "q": "How often should these be reviewed?",
+          "a": "Weekly at team level, monthly at leadership level, and alerted on continuously — the alerts should fire on trends rather than thresholds, because a threshold alert fires when it is already too late.\n\nThe review cadence matters less than someone owning it. A dashboard with no named owner stops being looked at within a month."
+        }
+      ]
+    },
+    {
+      "slug": "does-your-team-need-help",
+      "name": "Do you need outside help?",
+      "order": 5,
+      "h1": "How to tell whether your AI team needs outside help",
+      "tagline": "Including the cases where they clearly do not, which are more common than consultants tend to admit.",
+      "description": "An honest framework for engineering leaders deciding whether to bring in outside AI reliability help, when to keep it internal, and how to hire well if you do.",
+      "keywords": [
+        "when to hire AI consultant",
+        "AI contractor vs hire",
+        "outside help AI project",
+        "hiring AI engineer contractor",
+        "AI consulting decision"
+      ],
+      "audience": [
+        "Engineering leaders weighing outside help against internal capacity",
+        "Founders deciding between a contractor and a hire",
+        "Managers who suspect a problem but cannot name it"
+      ],
+      "theQuestion": "Should we bring someone in, hire, or handle this ourselves?",
+      "answerFirst": "Handle it internally when the gaps are clear and someone has the time — most reliability work is a few days per gap and needs no specialist. Bring in outside help when the gaps are clear but capacity is not, when you need it done by someone who has done it before, or when you need independent evidence for a customer or regulator. Hire rather than contract when agents are core to your product and the work is permanent, and be aware that a contractor is the faster way to find out what the role should even be.",
+      "body": [
+        "The default assumption should be that you do not need outside help. Most agent reliability work is unglamorous engineering — validation at boundaries, bounded resources, tracing, a test suite — and any competent senior engineer can do it once they know which gaps to close. That is why the scorecard on this site is free and gives you the ranked gap list: for a good number of teams that is the entire deliverable they needed.",
+          "What outside help actually buys is not knowledge. It is time, sequencing and pattern recognition. Someone who has closed these gaps several times will do it in a week and will not spend three days deciding whether to use an LLM-as-judge. That is worth paying for when the calendar matters, and not otherwise.",
+        "There is a third case that is less about capability than credibility: sometimes you need evidence produced by someone who does not report to you. A security reviewer, an enterprise customer or a regulator will weight an independent assessment differently, and that is a legitimate reason to buy one.",
+        "And the honest counter-case: if a consultant cannot tell you when not to hire them, their advice on everything else is worth less. I turn down work when the scorecard shows a team is already in good shape, because a referral is worth more to me than one invoice."
+      ],
+      "asset": {
+        "kind": "table",
+        "title": "Which of these describes you?",
+        "intro": "Read down the first column. Most teams find themselves in the top two rows.",
+        "columns": ["Situation", "What to do", "Why"],
+        "rows": [
+          [
+            "Gaps are clear and someone has capacity",
+            "Do it internally",
+            "The work is days per gap and needs no specialist. Use the scorecard's ranked list as your plan."
+          ],
+          [
+            "Gaps are clear, nobody has capacity",
+            "Contract it out, fixed scope",
+            "You are buying calendar time, not expertise. Scope it tightly and keep the artefacts."
+          ],
+          [
+            "Something is wrong and nobody can name it",
+            "Start with a diagnostic",
+            "The most common reason to buy. Diagnosis is a different skill from building, and being close to the system makes it harder."
+          ],
+          [
+            "You need evidence for a customer or regulator",
+            "Buy an independent assessment",
+            "Internal review is weighted differently by third parties, fairly or not."
+          ],
+          [
+            "Agents are core to the product, permanently",
+            "Hire — and contract meanwhile",
+            "This is a role, not a project. A contractor helps you define what the role actually is."
+          ],
+          [
+            "The team disagrees about what to fix first",
+            "An outside read helps",
+            "Sometimes what you need is a tie-break from someone with no stake in the argument."
+          ],
+          [
+            "It works fine and you are being cautious",
+            "Run the scorecard, then stop",
+            "If you score above 75 you do not need to buy anything. Recheck in six months."
+          ],
+          [
+            "You want someone to own quality long-term",
+            "Hire, do not contract",
+            "Ongoing ownership belongs inside the company. Anyone who tells you otherwise is selling a retainer."
+          ]
+        ],
+        "note": "Two of these eight rows say do not hire anyone, and one says hire an employee instead of a contractor. That distribution is roughly what I see in practice."
+      },
+      "secondAsset": {
+        "kind": "checklist",
+        "title": "If you do bring someone in, judge them on this",
+        "intro": "Applies to me as much as anyone. These are the signals that separate someone who will leave you better off from someone who will leave you a document.",
+        "items": [
+          "They tell you what they will not do, and it is a real list rather than false modesty",
+          "They quote a fixed price on a fixed scope, and the price does not move with your company's size or funding",
+          "The deliverables are things you own afterwards — an eval suite, traces, a fix list with estimates — not primarily a report",
+          "They ask what the problem costs you, not only how it works technically",
+          "They will name a case where they would tell you not to hire them",
+          "They do not need production credentials, and can explain what they need instead",
+          "They can describe something that went wrong on a previous engagement, specifically",
+          "Their fix list has effort estimates, so you can convert it into a sprint plan without them",
+          "They leave a written handover your team can act on without further calls"
+        ],
+        "note": "The last two matter most six months later. Work that only makes sense while its author is available was not finished."
+      },
+      "relatedSolutions": ["agent-eval-suites", "llm-observability", "llm-cost-reduction"],
+      "faq": [
+        {
+          "q": "When should we hire an AI consultant instead of doing it internally?",
+          "a": "When the gaps are clear but nobody has capacity, when you need it done fast by someone who has done it before, or when you need independent evidence for a customer or regulator.\n\nNot when the gaps are clear and someone has the time — that work is a few days per gap and any competent senior engineer can do it. Run the free scorecard first; for a good number of teams the ranked gap list is the whole thing they needed."
+        },
+        {
+          "q": "Should we hire someone full-time or use a contractor?",
+          "a": "Hire if agents are core to your product and the work is permanent — ongoing ownership of quality belongs inside the company, and anyone telling you otherwise is selling a retainer.\n\nContract when the work is a bounded project, or when you are not yet sure what the role should be. A contractor is a fast, cheap way to find out what you are actually hiring for before you write the job description."
+        },
+        {
+          "q": "How do we know a consultant is any good before hiring them?",
+          "a": "Ask what they will not do, and ask them to describe a case where they would tell you not to hire them. Both answers are hard to fake and highly diagnostic.\n\nThen check the deliverables: things you own afterwards rather than a report, and a fix list with effort estimates so your team can act without them. Also ask what went wrong on a previous engagement — specificity in that answer tells you a lot."
+        },
+        {
+          "q": "What if we just do nothing for now?",
+          "a": "Sometimes correct. If the agent is internal-only, low-volume, and a wrong answer is cheap, deferring is a reasonable call.\n\nIt stops being reasonable at the point where you cannot answer \"what would tell us this broke?\" and the agent is customer-facing. The four items on the launch checklist are the minimum I would not defer — they are days of work and they separate a bad week from an incident with a customer's name attached."
+        }
+      ]
+    }
+  ]
+}

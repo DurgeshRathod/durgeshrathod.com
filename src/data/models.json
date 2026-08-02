@@ -1,0 +1,227 @@
+{
+  "meta": {
+    "updated": "2026-08-02",
+    "currency": "USD",
+    "unit": "per 1,000,000 tokens",
+    "note": "Prices verified against provider documentation on the date above. Provider pricing changes; the figure that matters is your own measured cost per conversation. Treat this as a planning model, not an invoice.",
+    "sources": [
+      {
+        "name": "Anthropic — Claude API pricing",
+        "url": "https://platform.claude.com/docs/en/about-claude/pricing",
+        "verified": "2026-08-02"
+      },
+      {
+        "name": "OpenAI — API pricing",
+        "url": "https://developers.openai.com/api/docs/pricing",
+        "verified": "2026-08-02"
+      }
+    ],
+    "caveats": [
+      {
+        "id": "tokenizer-drift",
+        "title": "Newer models can cost more per word at the same price per token",
+        "body": "Claude Opus 4.7 and later use a newer tokenizer that produces roughly 30% more tokens for the same text than Claude Sonnet 4.6 and earlier. A model with an identical headline price can therefore cost about 30% more for identical input. Cost models that compare only $/MTok miss this entirely.",
+        "appliesTo": ["claude-opus-5", "claude-fable-5"]
+      },
+      {
+        "id": "sonnet-5-intro",
+        "title": "Claude Sonnet 5 introductory pricing ends 31 August 2026",
+        "body": "Sonnet 5 is $2/$10 per MTok through 31 August 2026, then $3/$15 — a 50% increase. If your forecast assumes current pricing beyond that date, it is roughly 50% light on that line item.",
+        "appliesTo": ["claude-sonnet-5"]
+      },
+      {
+        "id": "cache-write-premium",
+        "title": "Cache writes cost more than ordinary input",
+        "body": "A 5-minute cache write is 1.25x base input price and a 1-hour write is 2x. A cache read is 0.1x. Caching only pays off once content is actually re-read — after one read for the 5-minute tier, two for the 1-hour tier. Caching a prompt that is never reused makes it more expensive, not less.",
+        "appliesTo": []
+      },
+      {
+        "id": "tool-overhead",
+        "title": "Tool definitions are billed on every single call",
+        "body": "Tool schemas sit in the input of every request, plus a per-model tool-use system prompt of roughly 286–804 tokens. An agent with fifteen verbose tool definitions pays for all fifteen on every turn, whether it calls them or not — one of the most common invisible costs in agent systems.",
+        "appliesTo": []
+      }
+    ]
+  },
+  "models": [
+    {
+      "id": "claude-opus-5",
+      "name": "Claude Opus 5",
+      "provider": "Anthropic",
+      "tier": "frontier",
+      "inputPerM": 5.0,
+      "cachedInputPerM": 0.5,
+      "outputPerM": 25.0,
+      "batchInputPerM": 2.5,
+      "batchOutputPerM": 12.5,
+      "tokenMultiplier": 1.3,
+      "contextWindow": 1000000,
+      "notes": "Newer tokenizer: expect ~30% more tokens for the same text than Sonnet 4.6 and earlier."
+    },
+    {
+      "id": "claude-sonnet-5",
+      "name": "Claude Sonnet 5",
+      "provider": "Anthropic",
+      "tier": "workhorse",
+      "inputPerM": 2.0,
+      "cachedInputPerM": 0.2,
+      "outputPerM": 10.0,
+      "batchInputPerM": 1.0,
+      "batchOutputPerM": 5.0,
+      "tokenMultiplier": 1.3,
+      "contextWindow": 1000000,
+      "notes": "Introductory pricing through 31 Aug 2026; rises to $3/$15 on 1 Sep 2026."
+    },
+    {
+      "id": "claude-haiku-4-5",
+      "name": "Claude Haiku 4.5",
+      "provider": "Anthropic",
+      "tier": "cheap",
+      "inputPerM": 1.0,
+      "cachedInputPerM": 0.1,
+      "outputPerM": 5.0,
+      "batchInputPerM": 0.5,
+      "batchOutputPerM": 2.5,
+      "tokenMultiplier": 1.0,
+      "contextWindow": 200000,
+      "notes": "Strong default for classification, extraction and routing sub-tasks."
+    },
+    {
+      "id": "claude-fable-5",
+      "name": "Claude Fable 5",
+      "provider": "Anthropic",
+      "tier": "premium",
+      "inputPerM": 10.0,
+      "cachedInputPerM": 1.0,
+      "outputPerM": 50.0,
+      "batchInputPerM": 5.0,
+      "batchOutputPerM": 25.0,
+      "tokenMultiplier": 1.3,
+      "contextWindow": 1000000,
+      "notes": "Highest tier. Rarely the right default for high-volume agent traffic."
+    },
+    {
+      "id": "gpt-5-6-sol",
+      "name": "GPT-5.6 Sol",
+      "provider": "OpenAI",
+      "tier": "frontier",
+      "inputPerM": 5.0,
+      "cachedInputPerM": 0.5,
+      "outputPerM": 30.0,
+      "batchInputPerM": 2.5,
+      "batchOutputPerM": 15.0,
+      "tokenMultiplier": 1.0,
+      "contextWindow": 400000,
+      "notes": null
+    },
+    {
+      "id": "gpt-5-6-terra",
+      "name": "GPT-5.6 Terra",
+      "provider": "OpenAI",
+      "tier": "workhorse",
+      "inputPerM": 2.0,
+      "cachedInputPerM": 0.2,
+      "outputPerM": 12.0,
+      "batchInputPerM": 1.0,
+      "batchOutputPerM": 6.0,
+      "tokenMultiplier": 1.0,
+      "contextWindow": 400000,
+      "notes": null
+    },
+    {
+      "id": "gpt-5-6-luna",
+      "name": "GPT-5.6 Luna",
+      "provider": "OpenAI",
+      "tier": "cheap",
+      "inputPerM": 0.2,
+      "cachedInputPerM": 0.02,
+      "outputPerM": 1.2,
+      "batchInputPerM": 0.1,
+      "batchOutputPerM": 0.6,
+      "tokenMultiplier": 1.0,
+      "contextWindow": 400000,
+      "notes": "Cheapest credible option here — useful as the low end of a routing tier."
+    },
+    {
+      "id": "gpt-5-nano",
+      "name": "GPT-5 Nano",
+      "provider": "OpenAI",
+      "tier": "cheap",
+      "inputPerM": 0.05,
+      "cachedInputPerM": 0.005,
+      "outputPerM": 0.4,
+      "batchInputPerM": 0.025,
+      "batchOutputPerM": 0.2,
+      "tokenMultiplier": 1.0,
+      "contextWindow": 400000,
+      "notes": "Viable for narrow classification and routing where quality is measurable."
+    }
+  ],
+  "presets": [
+    {
+      "id": "support-agent",
+      "name": "Customer support agent",
+      "description": "Multi-turn support conversations with retrieval over a help centre and two or three tools.",
+      "conversationsPerMonth": 20000,
+      "turnsPerConversation": 6,
+      "inputTokensPerTurn": 3200,
+      "outputTokensPerTurn": 350,
+      "toolDefinitionTokens": 900,
+      "retryRate": 8,
+      "cacheHitRate": 60,
+      "modelId": "claude-sonnet-5"
+    },
+    {
+      "id": "internal-rag",
+      "name": "Internal knowledge assistant",
+      "description": "Employee-facing RAG assistant over internal documents. Long retrieved context, short answers.",
+      "conversationsPerMonth": 6000,
+      "turnsPerConversation": 3,
+      "inputTokensPerTurn": 8000,
+      "outputTokensPerTurn": 400,
+      "toolDefinitionTokens": 400,
+      "retryRate": 4,
+      "cacheHitRate": 45,
+      "modelId": "claude-sonnet-5"
+    },
+    {
+      "id": "multi-agent-research",
+      "name": "Multi-agent research workflow",
+      "description": "Orchestrator plus specialised sub-agents. The pattern where costs most often surprise teams — every sub-agent turn is a billed call.",
+      "conversationsPerMonth": 1200,
+      "turnsPerConversation": 28,
+      "inputTokensPerTurn": 6500,
+      "outputTokensPerTurn": 900,
+      "toolDefinitionTokens": 1800,
+      "retryRate": 14,
+      "cacheHitRate": 35,
+      "modelId": "claude-opus-5"
+    },
+    {
+      "id": "extraction-pipeline",
+      "name": "Document extraction pipeline",
+      "description": "High-volume structured extraction. Batch-friendly and the clearest case for a cheap model.",
+      "conversationsPerMonth": 150000,
+      "turnsPerConversation": 1,
+      "inputTokensPerTurn": 4500,
+      "outputTokensPerTurn": 600,
+      "toolDefinitionTokens": 200,
+      "retryRate": 3,
+      "cacheHitRate": 20,
+      "modelId": "claude-haiku-4-5"
+    },
+    {
+      "id": "coding-agent",
+      "name": "Coding agent",
+      "description": "Long-horizon sessions with large file context and heavy tool use. Token-hungry by nature.",
+      "conversationsPerMonth": 900,
+      "turnsPerConversation": 40,
+      "inputTokensPerTurn": 22000,
+      "outputTokensPerTurn": 1200,
+      "toolDefinitionTokens": 2400,
+      "retryRate": 10,
+      "cacheHitRate": 75,
+      "modelId": "claude-opus-5"
+    }
+  ]
+}

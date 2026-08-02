@@ -1,0 +1,331 @@
+---
+import Base from '../layouts/Base.astro';
+import CtaRow from '../components/CtaRow.astro';
+import Faq from '../components/Faq.astro';
+import Availability from '../components/Availability.astro';
+import { OFFERS, SITE } from '../consts.ts';
+import { href } from '../lib/paths.ts';
+import { waLink, WA_MESSAGES } from '../lib/whatsapp.ts';
+import { faqSchema, breadcrumbSchema, type QA } from '../lib/seo.ts';
+
+const [audit, retainer] = OFFERS;
+
+const process = [
+  {
+    step: 'Message',
+    detail:
+      'Tell me what your agent does, roughly what volume it handles, and what worries you. Two paragraphs is plenty. I reply with an honest read on whether I can help — including when I think you do not need me.',
+    time: 'Same day, usually',
+  },
+  {
+    step: 'A 20-minute call',
+    detail:
+      'Not a sales call. I ask about your architecture, your traffic, and what has already gone wrong, so I can scope accurately. You get useful answers whether or not we work together.',
+    time: '20 minutes',
+  },
+  {
+    step: 'A written scope',
+    detail:
+      'One page: what I will look at, what you will get, the fixed price, and the dates. No hourly estimates that drift, no discovery phase billed separately.',
+    time: 'Within two days',
+  },
+  {
+    step: 'The work',
+    detail:
+      'Read access to the code, whatever traces exist, and 60–90 minutes with an engineer who knows the system. I work async and share findings as I go rather than saving them for a reveal.',
+    time: '1–2 weeks for an audit',
+  },
+  {
+    step: 'Handover',
+    detail:
+      'A recorded walkthrough with your engineers, plus everything I built — the eval suite, the traces, the fix list. It is yours whether we continue or not.',
+    time: '90 minutes',
+  },
+];
+
+const notDoing = [
+  {
+    title: 'Build your agent from scratch',
+    why: 'I am useful once something exists and needs to survive contact with users. If you are at the blank-page stage, you need a product decision, not a reliability engineer.',
+  },
+  {
+    title: 'Fine-tune or train models',
+    why: 'Almost every problem sold as needing a fine-tune is a retrieval, evaluation, or prompt-architecture problem. I will tell you that for free, and if you genuinely need a fine-tune I am not your best option.',
+  },
+  {
+    title: 'Staff augmentation by the hour',
+    why: 'Hourly billing rewards slowness and invites geographic rate haggling. I quote fixed scope so we both care about the outcome instead of the timesheet.',
+  },
+  {
+    title: 'Sell you an audit you do not need',
+    why: 'If the free scorecard shows you are already in good shape, I will say so. Selling an audit to a team that does not need one costs me a reference, which is worth more than one invoice.',
+  },
+];
+
+const faqs: QA[] = [
+  {
+    q: 'Why are prices on the page when most consultants hide them?',
+    a: 'Because hiding them wastes both our time. If $5,000 is outside your budget you should know that in ten seconds, not after two calls.\n\nIt also signals that the price is the price. Quoting after discovery invites the suspicion that the number depends on what you can afford.',
+  },
+  {
+    q: 'Do you charge less because you are based in India?',
+    a: 'No. The price is the same regardless of where the client or I happen to sit, which is exactly why I quote fixed scope rather than an hourly rate.\n\nYou are buying a specific outcome — an eval suite, a cost profile, a ranked fix list — and that outcome has the same value to you whoever produced it.',
+  },
+  {
+    q: 'What if the audit finds nothing serious?',
+    a: 'Then you get a short report saying so, and I will tell you honestly that you do not need a retainer. That has happened, and those teams have sent me referrals.\n\nIn practice it is rare: most teams running agents in production have at least one critical gap, most often no tool-argument validation or no cost ceiling.',
+  },
+  {
+    q: 'Can we start with something smaller than an audit?',
+    a: 'Yes. Send me your scorecard result or a description of one specific failure, and I will give you my read at no charge. I would rather be useful early than gate everything behind an invoice.\n\nIf that turns into a paid engagement, good. If it does not, you still got an answer.',
+  },
+  {
+    q: 'How do you handle our code and data confidentially?',
+    a: 'Happy to sign your NDA before anything is shared. I work on the minimum access needed — read access to the relevant repositories rather than broad admin, and anonymised or synthetic samples where real data is not necessary.\n\nI do not need production credentials to audit an agent, and I will push back if offered them.',
+  },
+  {
+    q: 'Are you available for a full-time role instead?',
+    a: 'I will listen to the right one. I am doing independent work deliberately, but a genuinely interesting remote role with location-agnostic compensation is worth a conversation.\n\nMessage me with the company, the role, and the comp range and I will be straight with you either way.',
+  },
+];
+
+const schema = [
+  faqSchema(faqs),
+  breadcrumbSchema([
+    { name: 'Home', path: '/' },
+    { name: 'Work with me', path: '/work-with-me' },
+  ]),
+];
+---
+
+<Base
+  title="Work with me — fixed-price agent reliability audits and retainers"
+  description={`Two ways to work together: a ${audit.priceLabel} Agent Production Readiness Audit, or a ${retainer.priceLabel} fractional AI reliability retainer. Fixed scope, prices on the page, and an honest answer about whether you need me.`}
+  path="/work-with-me"
+  schema={schema}
+>
+  <section class="container-page pt-14 pb-10">
+    <nav aria-label="Breadcrumb" class="text-sm" style="color: var(--fg-subtle);">
+      <a href={href('/')} class="hover:underline">Home</a>
+      <span class="mx-1.5" aria-hidden="true">/</span>
+      <span style="color: var(--fg-muted);">Work with me</span>
+    </nav>
+
+    <h1 class="text-h1 mt-8 max-w-3xl font-semibold" style="text-wrap: balance;">
+      Two ways in, both fixed-price
+    </h1>
+    <p class="text-lead mt-5 max-w-2xl" style="color: var(--fg-muted);">
+      Most engagements start with the audit, because it is the cheapest way for both of us to
+      find out whether I can help. Prices are below rather than behind a call.
+    </p>
+
+    <div class="mt-8 max-w-md">
+      <Availability compact />
+    </div>
+  </section>
+
+  <!-- ── Offers in detail ─────────────────────────────────────────────── -->
+  <section class="container-page pb-14">
+    <div class="grid gap-6 lg:grid-cols-2">
+      {
+        OFFERS.map((o, i) => (
+          <article
+            id={o.id}
+            class="flex scroll-mt-24 flex-col rounded-3xl border p-7 sm:p-8"
+            style={`background: var(--bg-raised); box-shadow: var(--shadow-card); ${i === 0 ? 'border-color: var(--accent);' : ''}`}
+          >
+            {i === 0 && (
+              <span
+                class="mb-4 self-start rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide"
+                style="background: var(--accent-soft); color: var(--accent);"
+              >
+                Most people start here
+              </span>
+            )}
+
+            <p class="text-xs font-semibold uppercase tracking-wider" style="color: var(--fg-subtle);">
+              {o.kind} · {o.duration}
+            </p>
+            <h2 class="text-h2 mt-2 font-semibold" style="text-wrap: balance;">
+              {o.name}
+            </h2>
+            <p class="text-h2 mt-4 font-semibold tabular-nums" style="color: var(--accent);">
+              {o.priceLabel}
+            </p>
+            <p class="mt-4 text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+              {o.summary}
+            </p>
+
+            <h3 class="mt-7 text-sm font-semibold uppercase tracking-wider" style="color: var(--fg-subtle);">
+              What you get
+            </h3>
+            <ul class="mt-3 grid flex-1 gap-3 text-[15px]">
+              {o.deliverables.map((d) => (
+                <li class="flex gap-3">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="3"
+                    class="mt-1.5 size-3.5 shrink-0"
+                    style="color: var(--good);"
+                    aria-hidden="true"
+                  >
+                    <path d="M20 6 9 17l-5-5" />
+                  </svg>
+                  <span style="color: var(--fg-muted);">{d}</span>
+                </li>
+              ))}
+            </ul>
+
+            <p
+              class="mt-6 rounded-xl border-l-2 p-4 text-[15px] leading-relaxed"
+              style="border-color: var(--accent); background: var(--bg); color: var(--fg-muted);"
+            >
+              <strong style="color: var(--fg);">Right for you if:</strong> {o.bestFor}
+            </p>
+
+            <a
+              href={waLink(WA_MESSAGES[o.id === 'audit' ? 'audit' : 'retainer'])}
+              target="_blank"
+              rel="noopener"
+              data-analytics={`offer-${o.id}-whatsapp`}
+              class="mt-6 inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3.5 text-[15px] font-semibold transition-all hover:opacity-90 active:scale-[0.98]"
+              style={
+                i === 0
+                  ? 'background: var(--accent-solid); color: var(--accent-solid-fg);'
+                  : 'border: 1px solid var(--border-strong);'
+              }
+            >
+              {i === 0 ? 'Enquire about the audit' : 'Enquire about the retainer'}
+            </a>
+          </article>
+        ))
+      }
+    </div>
+
+    <p class="mt-6 max-w-3xl text-sm leading-relaxed" style="color: var(--fg-subtle);">
+      Ranges reflect scope, not negotiation. A single agent with existing traces sits at the
+      lower end; several agents with no observability at all sits at the upper end. You get the
+      exact figure in writing before anything starts.
+    </p>
+  </section>
+
+  <!-- ── Process ──────────────────────────────────────────────────────── -->
+  <section class="container-page border-t py-14">
+    <h2 class="text-h2 font-semibold">How an engagement actually runs</h2>
+    <p class="text-lead mt-4 max-w-2xl" style="color: var(--fg-muted);">
+      No discovery phase billed as a project. No proposal deck. Five steps, and you can stop
+      after any of them.
+    </p>
+
+    <ol class="mt-10 grid gap-4">
+      {
+        process.map((p, i) => (
+          <li
+            class="grid gap-4 rounded-2xl border p-6 sm:grid-cols-[auto_1fr_auto] sm:items-start sm:gap-6"
+            style="background: var(--bg-raised);"
+            data-reveal
+            data-reveal-delay={i * 60}
+          >
+            <span
+              class="grid size-8 shrink-0 place-items-center rounded-lg font-mono text-xs font-bold"
+              style="background: var(--accent-soft); color: var(--accent);"
+            >
+              {i + 1}
+            </span>
+            <div>
+              <h3 class="text-[17px] font-semibold">{p.step}</h3>
+              <p class="mt-1.5 max-w-2xl text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+                {p.detail}
+              </p>
+            </div>
+            <span class="font-mono text-[13px] whitespace-nowrap sm:text-right" style="color: var(--fg-subtle);">
+              {p.time}
+            </span>
+          </li>
+        ))
+      }
+    </ol>
+  </section>
+
+  <!-- ── What I don't do ──────────────────────────────────────────────── -->
+  <section class="container-page border-t py-14">
+    <h2 class="text-h2 font-semibold">What I will not do</h2>
+    <p class="text-lead mt-4 max-w-2xl" style="color: var(--fg-muted);">
+      Stated up front, because a consultant who claims to do everything is telling you they
+      specialise in nothing.
+    </p>
+
+    <div class="mt-10 grid gap-4 md:grid-cols-2">
+      {
+        notDoing.map((n, i) => (
+          <article class="rounded-2xl border p-6" style="background: var(--bg-raised);" data-reveal data-reveal-delay={i * 60}>
+            <h3 class="flex items-start gap-2.5 text-[17px] font-semibold">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                class="mt-1 size-4 shrink-0"
+                style="color: var(--risk);"
+                aria-hidden="true"
+              >
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+              {n.title}
+            </h3>
+            <p class="mt-2.5 text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+              {n.why}
+            </p>
+          </article>
+        ))
+      }
+    </div>
+  </section>
+
+  <!-- ── FAQ ──────────────────────────────────────────────────────────── -->
+  <section class="container-page border-t py-14">
+    <h2 class="text-h2 font-semibold">Questions about working together</h2>
+    <div class="mt-8 max-w-3xl">
+      <Faq items={faqs} />
+    </div>
+  </section>
+
+  <!-- ── Close ────────────────────────────────────────────────────────── -->
+  <section class="container-page pb-8">
+    <div class="rounded-3xl border p-8 sm:p-12" style="background: var(--bg-raised); box-shadow: var(--shadow-card);">
+      <div class="grid gap-8 lg:grid-cols-[1.4fr_1fr] lg:items-center">
+        <div>
+          <h2 class="text-h2 font-semibold" style="text-wrap: balance;">
+            Start with a message, not a commitment.
+          </h2>
+          <p class="mt-4 max-w-xl text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+            Describe your agent and what worries you. I will tell you what I would look at first
+            and whether it is worth paying me — that answer is free, and sometimes it is no.
+          </p>
+          <div class="mt-8">
+            <CtaRow source="wwm-close" intent="audit" primaryLabel="Message me on WhatsApp" />
+          </div>
+        </div>
+        <div class="rounded-2xl border p-6" style="background: var(--bg);">
+          <p class="text-sm font-semibold">Not sure which you need?</p>
+          <p class="mt-2 text-sm leading-relaxed" style="color: var(--fg-muted);">
+            Run the free scorecard first. It takes four minutes and will tell you whether your
+            gaps are the kind a one-off audit closes or the kind that needs someone to own them.
+          </p>
+          <a
+            href={href('/scorecard')}
+            class="mt-5 inline-flex items-center gap-2 text-sm font-semibold"
+            style="color: var(--accent);"
+          >
+            Run the scorecard
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="size-3.5" aria-hidden="true">
+              <path d="M5 12h14M13 6l6 6-6 6" />
+            </svg>
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+</Base>

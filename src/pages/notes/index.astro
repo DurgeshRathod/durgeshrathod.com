@@ -1,0 +1,113 @@
+---
+import { getCollection } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import { href } from '../../lib/paths.ts';
+import { breadcrumbSchema } from '../../lib/seo.ts';
+
+const notes = (await getCollection('notes'))
+  .filter((n) => !n.data.draft)
+  .sort((a, b) => new Date(b.data.published).valueOf() - new Date(a.data.published).valueOf());
+
+const fmt = (iso: string) =>
+  new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+const schema = [
+  {
+    '@type': 'Blog',
+    name: 'Notes on agent reliability',
+    description:
+      'Writing on making AI agents reliable, observable and affordable in production — with real numbers rather than opinions.',
+  },
+  breadcrumbSchema([
+    { name: 'Home', path: '/' },
+    { name: 'Notes', path: '/notes' },
+  ]),
+];
+---
+
+<Base
+  title="Notes on agent reliability, cost and observability"
+  description="Writing on making AI agents survive production: evaluation, tracing, cost control, and the failure modes that keep recurring. Specific numbers, not opinions."
+  path="/notes"
+  schema={schema}
+>
+  <section class="container-page pt-14 pb-10">
+    <nav aria-label="Breadcrumb" class="text-sm" style="color: var(--fg-subtle);">
+      <a href={href('/')} class="hover:underline">Home</a>
+      <span class="mx-1.5" aria-hidden="true">/</span>
+      <span style="color: var(--fg-muted);">Notes</span>
+    </nav>
+
+    <h1 class="text-h1 mt-8 max-w-3xl font-semibold" style="text-wrap: balance;">
+      Notes on making agents survive production
+    </h1>
+    <p class="text-lead mt-5 max-w-2xl" style="color: var(--fg-muted);">
+      Roughly monthly. Each one aims to contain at least one number you can check and one thing
+      you can do on Monday. If a post is just an opinion, I have not finished it.
+    </p>
+
+    <p class="mt-6 text-sm">
+      <a
+        href={href('/rss.xml')}
+        class="inline-flex items-center gap-1.5 font-medium underline decoration-1 underline-offset-4"
+        style="color: var(--fg-muted);"
+      >
+        <svg viewBox="0 0 24 24" fill="currentColor" class="size-3.5" aria-hidden="true">
+          <path
+            d="M4 11a9 9 0 0 1 9 9h-2.5A6.5 6.5 0 0 0 4 13.5V11Zm0-5a14 14 0 0 1 14 14h-2.5A11.5 11.5 0 0 0 4 8.5V6Zm1.5 10a2 2 0 1 1 0 4 2 2 0 0 1 0-4Z"
+          ></path>
+        </svg>
+        Subscribe via RSS
+      </a>
+    </p>
+  </section>
+
+  <section class="container-page pb-16">
+    {
+      notes.length === 0 ? (
+        <p class="rounded-2xl border p-8 text-[15px]" style="color: var(--fg-muted);">
+          Nothing published yet.
+        </p>
+      ) : (
+        <ul class="grid gap-4">
+          {notes.map((n, i) => (
+            <li data-reveal data-reveal-delay={i * 60}>
+              <a
+                href={href(`/notes/${n.id}`)}
+                class="group block rounded-2xl border p-7 transition-transform hover:-translate-y-0.5"
+                style="background: var(--bg-raised); box-shadow: var(--shadow-card);"
+              >
+                <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]" style="color: var(--fg-subtle);">
+                  <time datetime={n.data.published}>{fmt(n.data.published)}</time>
+                  {n.data.readingMinutes && (
+                    <>
+                      <span aria-hidden="true">·</span>
+                      <span>{n.data.readingMinutes} min read</span>
+                    </>
+                  )}
+                </div>
+
+                <h2 class="text-h3 mt-2.5 font-semibold leading-snug group-hover:underline decoration-1 underline-offset-4">
+                  {n.data.title}
+                </h2>
+                <p class="mt-2.5 max-w-3xl text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+                  {n.data.description}
+                </p>
+
+                {n.data.keywords.length > 0 && (
+                  <p class="mt-4 flex flex-wrap gap-1.5">
+                    {n.data.keywords.slice(0, 5).map((k) => (
+                      <span class="rounded-md border px-2 py-0.5 font-mono text-[11px]" style="color: var(--fg-subtle);">
+                        {k}
+                      </span>
+                    ))}
+                  </p>
+                )}
+              </a>
+            </li>
+          ))}
+        </ul>
+      )
+    }
+  </section>
+</Base>

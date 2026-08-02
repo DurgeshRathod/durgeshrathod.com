@@ -1,0 +1,72 @@
+---
+import { CONTACT, HAS_CAL } from '../consts.ts';
+import { href } from '../lib/paths.ts';
+import { waLink, WA_MESSAGES } from '../lib/whatsapp.ts';
+
+interface Props {
+  /** Which prefilled WhatsApp opener to use. */
+  intent?: keyof typeof WA_MESSAGES;
+  /** Label for the primary WhatsApp button. */
+  primaryLabel?: string;
+  /** Show the "book a call" secondary action. */
+  booking?: boolean;
+  /** Show the email fallback. */
+  email?: boolean;
+  align?: 'left' | 'center';
+  /** Analytics tag prefix so conversions are attributable per placement. */
+  source: string;
+}
+
+const {
+  intent = 'general',
+  primaryLabel = 'Message me on WhatsApp',
+  booking = true,
+  email = true,
+  align = 'left',
+  source,
+} = Astro.props;
+---
+
+<div class:list={['flex flex-wrap items-center gap-3', align === 'center' && 'justify-center']}>
+  <a
+    href={waLink(WA_MESSAGES[intent])}
+    target="_blank"
+    rel="noopener"
+    data-analytics={`${source}-whatsapp`}
+    class="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-[15px] font-semibold transition-all hover:opacity-90 active:scale-[0.98]"
+    style="background: var(--accent-solid); color: var(--accent-solid-fg);"
+  >
+    <svg viewBox="0 0 24 24" fill="currentColor" class="size-[18px]" aria-hidden="true">
+      <path
+        d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.9-4.45 9.9-9.91C21.95 6.45 17.5 2 12.04 2Zm5.8 14.06c-.24.68-1.42 1.3-1.96 1.35-.54.05-1.03.24-3.5-.73-2.98-1.17-4.85-4.25-5-4.45-.14-.2-1.17-1.56-1.17-2.97 0-1.41.73-2.1 1-2.4.26-.29.58-.36.78-.36l.56.01c.18 0 .42-.07.66.5.24.58.83 2 .9 2.15.07.14.12.31.02.5-.1.2-.15.32-.29.5l-.44.5c-.14.15-.29.3-.13.6.15.29.68 1.17 1.46 1.9.99.94 1.83 1.23 2.1 1.37.26.15.42.12.58-.07.15-.2.68-.8.86-1.08.19-.29.37-.24.62-.14.24.1 1.56.73 1.83.87.27.14.44.2.51.31.07.12.07.68-.17 1.36Z"
+      ></path>
+    </svg>
+    {primaryLabel}
+  </a>
+
+  {
+    booking && HAS_CAL && (
+      <a
+        href={href('/contact')}
+        data-analytics={`${source}-book`}
+        class="inline-flex items-center gap-2 rounded-xl border px-5 py-3 text-[15px] font-semibold transition-colors"
+        style="border-color: var(--border-strong);"
+      >
+        Book a 20-minute call
+      </a>
+    )
+  }
+
+  {
+    email && (
+      <a
+        href={`mailto:${CONTACT.email}`}
+        data-analytics={`${source}-email`}
+        class="text-sm font-medium underline decoration-1 underline-offset-4 transition-colors"
+        style="color: var(--fg-muted);"
+      >
+        or email instead
+      </a>
+    )
+  }
+</div>

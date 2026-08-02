@@ -1,0 +1,218 @@
+---
+import Base from '../layouts/Base.astro';
+import ContactForm from '../components/ContactForm.astro';
+import Availability from '../components/Availability.astro';
+import { CONTACT, PROFILES, SITE, HAS_CAL } from '../consts.ts';
+import { href } from '../lib/paths.ts';
+import { waLink, WA_MESSAGES } from '../lib/whatsapp.ts';
+import { breadcrumbSchema, ID } from '../lib/seo.ts';
+
+// Pune. Used for the keyless OpenStreetMap embed — no API key, no Google tracking.
+const LAT = 18.5204;
+const LON = 73.8567;
+const D = 0.06;
+const osmSrc = `https://www.openstreetmap.org/export/embed.html?bbox=${LON - D}%2C${LAT - D / 2}%2C${LON + D}%2C${LAT + D / 2}&layer=mapnik&marker=${LAT}%2C${LON}`;
+
+const channels = [
+  {
+    label: 'WhatsApp',
+    value: CONTACT.whatsappDisplay,
+    detail: 'Fastest. I read it on my phone and usually reply the same day.',
+    href: waLink(WA_MESSAGES.general),
+    external: true,
+    primary: true,
+  },
+  {
+    label: 'Email',
+    value: CONTACT.email,
+    detail: 'Better for anything long, or if you need to attach something.',
+    href: `mailto:${CONTACT.email}`,
+    external: false,
+    primary: false,
+  },
+  {
+    label: 'LinkedIn',
+    value: 'in/durgesh-rathod',
+    detail: 'Fine for a first hello, though I check it less often.',
+    href: PROFILES.linkedin,
+    external: true,
+    primary: false,
+  },
+];
+
+const schema = [
+  {
+    '@type': 'ContactPage',
+    name: `Contact ${SITE.name}`,
+    mainEntity: { '@id': ID.person },
+  },
+  breadcrumbSchema([
+    { name: 'Home', path: '/' },
+    { name: 'Contact', path: '/contact' },
+  ]),
+];
+---
+
+<Base
+  title="Contact"
+  description={`Get in touch with ${SITE.name} about AI agent reliability — WhatsApp ${CONTACT.whatsappDisplay}, email ${CONTACT.email}, or book a 20-minute call. Based in ${SITE.location} (${SITE.utcOffset}), working remotely worldwide.`}
+  path="/contact"
+  schema={schema}
+>
+  <section class="container-page pt-14 pb-10">
+    <nav aria-label="Breadcrumb" class="text-sm" style="color: var(--fg-subtle);">
+      <a href={href('/')} class="hover:underline">Home</a>
+      <span class="mx-1.5" aria-hidden="true">/</span>
+      <span style="color: var(--fg-muted);">Contact</span>
+    </nav>
+
+    <h1 class="text-h1 mt-8 max-w-2xl font-semibold" style="text-wrap: balance;">
+      Tell me what your agent does and what worries you.
+    </h1>
+    <p class="text-lead mt-5 max-w-2xl" style="color: var(--fg-muted);">
+      That is genuinely enough to start. I will reply with what I would look at first — and if I
+      do not think you need to pay me, I will say that instead.
+    </p>
+  </section>
+
+  <!-- ── Channels ─────────────────────────────────────────────────────── -->
+  <section class="container-page pb-12">
+    <div class="grid gap-4 md:grid-cols-3">
+      {
+        channels.map((c) => (
+          <a
+            href={c.href}
+            target={c.external ? '_blank' : undefined}
+            rel={c.external ? 'noopener' : undefined}
+            data-analytics={`contact-${c.label.toLowerCase()}`}
+            class="group rounded-2xl border p-6 transition-transform hover:-translate-y-0.5"
+            style={`background: var(--bg-raised); ${c.primary ? 'border-color: var(--accent);' : ''}`}
+          >
+            <p class="text-xs font-semibold uppercase tracking-wider" style={c.primary ? 'color: var(--accent);' : 'color: var(--fg-subtle);'}>
+              {c.label}
+              {c.primary && ' · fastest'}
+            </p>
+            <p class="mt-2 font-mono text-[15px] font-medium break-all">{c.value}</p>
+            <p class="mt-2 text-[13px] leading-relaxed" style="color: var(--fg-muted);">
+              {c.detail}
+            </p>
+          </a>
+        ))
+      }
+    </div>
+  </section>
+
+  <!-- ── Form + booking ───────────────────────────────────────────────── -->
+  <section class="container-page pb-14">
+    <div class="grid gap-10 lg:grid-cols-[1.3fr_1fr] lg:gap-14">
+      <div>
+        <h2 class="text-h2 font-semibold">Or send it as a form</h2>
+        <p class="mt-3 max-w-xl text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+          Same inbox, more structure. If you would rather not use WhatsApp, this is the way.
+        </p>
+        <div class="mt-8">
+          <ContactForm />
+        </div>
+      </div>
+
+      <div class="grid gap-5">
+        <Availability />
+
+        {
+          HAS_CAL && (
+            <div class="rounded-xl border p-5" style="background: var(--bg-raised);">
+              <h2 class="text-sm font-semibold">Book a 20-minute call</h2>
+              <p class="mt-2 text-[13px] leading-relaxed" style="color: var(--fg-muted);">
+                Not a sales call — I ask about your architecture so I can scope accurately. Pick
+                any slot that works in your timezone.
+              </p>
+              <a
+                href={`https://cal.com/${CONTACT.calLink}`}
+                target="_blank"
+                rel="noopener"
+                data-analytics="contact-cal"
+                class="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-opacity hover:opacity-90"
+                style="background: var(--accent-solid); color: var(--accent-solid-fg);"
+              >
+                Open my calendar
+              </a>
+              <p class="mt-3 text-[12px] leading-relaxed" style="color: var(--fg-subtle);">
+                Set your real Cal.com or Calendly slug in <code class="font-mono">src/consts.ts</code>{' '}
+                to activate this. Leave it empty and every booking CTA disappears cleanly.
+              </p>
+            </div>
+          )
+        }
+
+        <div class="overflow-hidden rounded-xl border" style="background: var(--bg-raised);">
+          <div class="p-5">
+            <h2 class="text-sm font-semibold">Where I am</h2>
+            <p class="mt-2 text-[13px] leading-relaxed" style="color: var(--fg-muted);">
+              {SITE.location} — {SITE.timezone} ({SITE.utcOffset}). I work remotely with teams in
+              Europe, the UK, the US and Australia.
+            </p>
+          </div>
+          <!--
+            OpenStreetMap rather than Google Maps: no API key to leak, no billing account,
+            and no third-party tracking on a page whose whole point is a contact form.
+          -->
+          <iframe
+            src={osmSrc}
+            title={`Map showing ${SITE.location}`}
+            loading="lazy"
+            referrerpolicy="no-referrer-when-downgrade"
+            class="block h-56 w-full border-0"
+            style="filter: saturate(0.85);"></iframe>
+          <div class="p-3 text-center">
+            <a
+              href={`https://www.openstreetmap.org/?mlat=${LAT}&mlon=${LON}#map=11/${LAT}/${LON}`}
+              target="_blank"
+              rel="noopener"
+              class="text-[12px] underline decoration-1 underline-offset-2"
+              style="color: var(--fg-subtle);">View larger map · © OpenStreetMap contributors</a
+            >
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── What to include ──────────────────────────────────────────────── -->
+  <section class="container-page border-t py-14">
+    <h2 class="text-h2 font-semibold">What to put in the first message</h2>
+    <p class="text-lead mt-4 max-w-2xl" style="color: var(--fg-muted);">
+      None of this is required. It just means my first reply is useful rather than a list of
+      questions.
+    </p>
+
+    <div class="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {
+        [
+          { q: 'What does the agent do?', a: 'One sentence. "Triages support tickets against our help centre" is perfect.' },
+          { q: 'What is it built on?', a: 'Framework and model. LangGraph and Sonnet, CrewAI and GPT, raw SDK — whatever it is.' },
+          { q: 'Roughly what volume?', a: 'Conversations per month, and how many turns a typical one runs to.' },
+          { q: 'What worries you most?', a: 'Cost, wrong answers, no visibility, or the fact that nobody knows. Be blunt.' },
+        ].map((x, i) => (
+          <div class="rounded-2xl border p-5" style="background: var(--bg-raised);" data-reveal data-reveal-delay={i * 50}>
+            <p class="text-[15px] font-semibold leading-snug">{x.q}</p>
+            <p class="mt-2 text-[13px] leading-relaxed" style="color: var(--fg-muted);">
+              {x.a}
+            </p>
+          </div>
+        ))
+      }
+    </div>
+
+    <div class="mt-10 rounded-2xl border p-7" style="background: var(--bg-raised);">
+      <p class="text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+        Even better: <a
+          href={href('/scorecard')}
+          class="font-medium underline decoration-1 underline-offset-4"
+          style="color: var(--fg);">run the free scorecard</a
+        > first and send me the result. It arrives with your score, your weakest areas and your
+        top gaps already filled in, which means my first reply can be specific instead of
+        exploratory.
+      </p>
+    </div>
+  </section>
+</Base>

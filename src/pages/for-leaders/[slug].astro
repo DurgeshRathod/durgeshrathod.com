@@ -1,0 +1,332 @@
+---
+import type { GetStaticPaths } from 'astro';
+import Base from '../../layouts/Base.astro';
+import CtaRow from '../../components/CtaRow.astro';
+import Faq from '../../components/Faq.astro';
+import decisions from '../../data/decisions.json';
+import solutions from '../../data/solutions.json';
+import { href } from '../../lib/paths.ts';
+import { faqSchema, breadcrumbSchema, articleSchema, ID, type QA } from '../../lib/seo.ts';
+
+/*
+  Decision-support pages for budget holders.
+
+  Structurally different from /solutions and /industries, because the reader is different:
+  an `answerFirst` block up top (a busy manager reads that and stops — and it is also the
+  passage an AI answer engine extracts), then the framework, then the artefact they can take
+  into a meeting. No implementation detail; that lives on the solution pages.
+*/
+
+export const getStaticPaths: GetStaticPaths = () =>
+  decisions.decisions.map((d) => ({ params: { slug: d.slug }, props: { d } }));
+
+const { d } = Astro.props;
+const meta = decisions.meta;
+
+const relSolutions = d.relatedSolutions
+  .map((slug) => solutions.solutions.find((s) => s.slug === slug))
+  .filter((s): s is (typeof solutions.solutions)[number] => Boolean(s));
+
+const others = decisions.decisions
+  .filter((o) => o.slug !== d.slug)
+  .sort((a, b) => a.order - b.order);
+
+const schema = [
+  articleSchema({
+    title: d.h1,
+    description: d.description,
+    path: `/for-leaders/${d.slug}`,
+    published: meta.updated,
+    section: 'For engineering leaders',
+    keywords: d.keywords,
+  }),
+  faqSchema(d.faq as QA[]),
+  breadcrumbSchema([
+    { name: 'Home', path: '/' },
+    { name: 'For leaders', path: '/for-leaders' },
+    { name: d.name, path: `/for-leaders/${d.slug}` },
+  ]),
+];
+---
+
+<Base
+  title={d.h1}
+  description={d.description}
+  path={`/for-leaders/${d.slug}`}
+  schema={schema}
+  published={meta.updated}
+>
+  <section class="container-page pt-14 pb-8">
+    <nav aria-label="Breadcrumb" class="text-sm" style="color: var(--fg-subtle);">
+      <a href={href('/')} class="hover:underline">Home</a>
+      <span class="mx-1.5" aria-hidden="true">/</span>
+      <a href={href('/for-leaders')} class="hover:underline">For leaders</a>
+      <span class="mx-1.5" aria-hidden="true">/</span>
+      <span style="color: var(--fg-muted);">{d.name}</span>
+    </nav>
+
+    <p class="mt-8 text-xs font-semibold uppercase tracking-[0.14em]" style="color: var(--accent);">
+      Decision support
+    </p>
+    <h1 class="text-h1 mt-3 max-w-4xl font-semibold" style="text-wrap: balance;">
+      {d.h1}
+    </h1>
+    <p class="text-lead mt-5 max-w-3xl" style="color: var(--fg-muted);">
+      {d.tagline}
+    </p>
+  </section>
+
+  <!-- ── The short answer: for the reader who will not scroll ──────────── -->
+  <section class="container-page pb-12">
+    <div
+      class="rounded-3xl border p-7 sm:p-9"
+      style="background: var(--bg-raised); box-shadow: var(--shadow-card); border-color: var(--accent);"
+    >
+      <p class="text-xs font-semibold uppercase tracking-wider" style="color: var(--accent);">
+        The question
+      </p>
+      <p class="mt-2 max-w-3xl text-[17px] font-semibold leading-snug">{d.theQuestion}</p>
+
+      <p class="mt-6 text-xs font-semibold uppercase tracking-wider" style="color: var(--fg-subtle);">
+        The short answer
+      </p>
+      <p class="text-lead mt-2 max-w-3xl" style="color: var(--fg-muted);">
+        {d.answerFirst}
+      </p>
+    </div>
+
+    <div class="mt-6 grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-wider" style="color: var(--fg-subtle);">
+          Written for
+        </p>
+        <ul class="mt-2 grid gap-1.5 text-sm">
+          {
+            d.audience.map((a) => (
+              <li class="flex gap-2.5" style="color: var(--fg-muted);">
+                <span style="color: var(--accent);" aria-hidden="true">
+                  ·
+                </span>
+                <span>{a}</span>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Reasoning ────────────────────────────────────────────────────── -->
+  <section class="border-t py-14">
+    <div class="container-prose">
+      <h2 class="text-h2 font-semibold" style="text-wrap: balance;">Why the answer is that</h2>
+      <div class="prose mt-6">
+        {d.body.map((p) => <p>{p}</p>)}
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Artefacts ────────────────────────────────────────────────────── -->
+  {
+    [d.asset, (d as Record<string, any>).secondAsset]
+      .filter(Boolean)
+      .map((asset: any) => (
+        <section class="border-t py-14">
+          <div class="container-page">
+            <h2 class="text-h2 max-w-3xl font-semibold" style="text-wrap: balance;">
+              {asset.title}
+            </h2>
+            <p class="mt-4 max-w-2xl text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+              {asset.intro}
+            </p>
+
+            {asset.kind === 'table' ? (
+              <div class="scroll-x mt-8">
+                <table class="w-full min-w-[720px] text-sm">
+                  <thead>
+                    <tr class="border-b text-left">
+                      {asset.columns.map((c: string) => (
+                        <th class="px-3 py-2.5 font-semibold">{c}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {asset.rows.map((row: string[]) => (
+                      <tr class="border-b align-top">
+                        {row.map((cell: string, ci: number) =>
+                          ci === 0 ? (
+                            <th scope="row" class="px-3 py-3 text-left font-medium">
+                              {cell}
+                            </th>
+                          ) : (
+                            <td class="px-3 py-3 leading-relaxed" style="color: var(--fg-muted);">
+                              {cell}
+                            </td>
+                          )
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <ol class="mt-8 grid gap-3">
+                {asset.items.map((item: string, i: number) => (
+                  <li class="flex gap-4 rounded-xl border p-4" style="background: var(--bg-raised);">
+                    <span
+                      class="grid size-6 shrink-0 place-items-center rounded-md font-mono text-[11px] font-bold"
+                      style="background: var(--accent-soft); color: var(--accent);"
+                    >
+                      {i + 1}
+                    </span>
+                    <span class="text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+                      {item}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            )}
+
+            {asset.note && (
+              <p
+                class="mt-6 max-w-3xl border-l-2 pl-4 text-[15px] leading-relaxed"
+                style="border-color: var(--accent); color: var(--fg-muted);"
+              >
+                {asset.note}
+              </p>
+            )}
+          </div>
+        </section>
+      ))
+  }
+
+  <!-- ── Scorecard bridge — the thing a manager can act on today ───────── -->
+  <section class="border-t py-14">
+    <div class="container-page">
+      <div class="rounded-2xl border p-7 sm:p-9" style="background: var(--bg-raised);">
+        <div class="grid gap-8 lg:grid-cols-[1.4fr_1fr] lg:items-center">
+          <div>
+            <h2 class="text-h2 font-semibold" style="text-wrap: balance;">
+              Get the answer for your own system in four minutes
+            </h2>
+            <p class="mt-4 max-w-xl text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+              The free scorecard produces a score out of 100, a breakdown across reliability, cost
+              and observability, and your gaps ranked by production risk with a fix and effort
+              estimate for each. It prints to a PDF you can take into a planning meeting — which
+              is usually more persuasive than an argument.
+            </p>
+            <a
+              href={href('/scorecard')}
+              data-analytics={`leaders-${d.slug}-scorecard`}
+              class="mt-7 inline-flex items-center gap-2 rounded-xl px-5 py-3 text-[15px] font-semibold transition-opacity hover:opacity-90"
+              style="background: var(--accent-solid); color: var(--accent-solid-fg);"
+            >
+              Run the scorecard
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="size-4" aria-hidden="true">
+                <path d="M5 12h14M13 6l6 6-6 6" />
+              </svg>
+            </a>
+          </div>
+          <p class="rounded-xl border p-5 text-[13px] leading-relaxed" style="background: var(--bg); color: var(--fg-muted);">
+            <strong style="color: var(--fg);">If you are the engineer who found this page:</strong>{' '}
+            {meta.forwardNote}
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Related solutions ────────────────────────────────────────────── -->
+  {
+    relSolutions.length > 0 && (
+      <section class="border-t py-14">
+        <div class="container-page">
+          <h2 class="text-h2 font-semibold">If you decide to do the work</h2>
+          <p class="text-lead mt-4 max-w-2xl" style="color: var(--fg-muted);">
+            The engagements this decision leads to, each with the full method and effort estimates —
+            whether your team runs it or I do.
+          </p>
+          <div class="mt-8 grid gap-4 md:grid-cols-3">
+            {relSolutions.map((s) => (
+              <a
+                href={href(`/solutions/${s.slug}`)}
+                class="group flex flex-col rounded-2xl border p-6 transition-transform hover:-translate-y-0.5"
+                style="background: var(--bg-raised);"
+              >
+                <h3 class="text-h3 font-semibold leading-snug">{s.name}</h3>
+                <p class="mt-2 flex-1 text-[13px] leading-relaxed" style="color: var(--fg-muted);">
+                  {s.outcome}
+                </p>
+                <span class="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold" style="color: var(--accent);">
+                  The method
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="size-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true">
+                    <path d="M5 12h14M13 6l6 6-6 6" />
+                  </svg>
+                </span>
+              </a>
+            ))}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  <!-- ── FAQ ──────────────────────────────────────────────────────────── -->
+  <section class="border-t py-14">
+    <div class="container-page">
+      <h2 class="text-h2 font-semibold">Questions</h2>
+      <div class="mt-8 max-w-3xl">
+        <Faq items={d.faq as QA[]} />
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Close ────────────────────────────────────────────────────────── -->
+  <section class="pb-8">
+    <div class="container-page">
+      <div class="rounded-3xl border p-8 sm:p-10" style="background: var(--bg-raised); box-shadow: var(--shadow-card);">
+        <div class="grid gap-8 lg:grid-cols-[1.3fr_1fr] lg:items-start">
+          <div>
+            <h2 class="text-h2 font-semibold" style="text-wrap: balance;">
+              Want a second opinion on the decision?
+            </h2>
+            <p class="mt-4 max-w-xl text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+              Describe your situation and I will tell you what I would do — including when that is
+              "nothing" or "handle it internally". No charge for that, and it is genuinely how a
+              lot of these conversations end.
+            </p>
+            <div class="mt-8">
+              <CtaRow source={`leaders-${d.slug}-close`} intent="general" primaryLabel="Message me" />
+            </div>
+          </div>
+
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-wider" style="color: var(--fg-subtle);">
+              Other decisions
+            </p>
+            <ul class="mt-3 grid gap-2">
+              {
+                others.map((o) => (
+                  <li>
+                    <a
+                      href={href(`/for-leaders/${o.slug}`)}
+                      class="group flex items-baseline justify-between gap-3 rounded-lg border p-3 text-sm transition-colors"
+                      style="background: var(--bg);"
+                    >
+                      <span class="font-medium group-hover:underline decoration-1 underline-offset-4">
+                        {o.name}
+                      </span>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="size-3.5 shrink-0 transition-transform group-hover:translate-x-0.5" style="color: var(--accent);" aria-hidden="true">
+                        <path d="M5 12h14M13 6l6 6-6 6" />
+                      </svg>
+                    </a>
+                  </li>
+                ))
+              }
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</Base>

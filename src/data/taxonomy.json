@@ -1,0 +1,538 @@
+{
+  "meta": {
+    "version": "1.0",
+    "updated": "2026-08-02",
+    "title": "AI Agent Failure Taxonomy",
+    "description": "Nine ways production AI agents fail, each with the root causes worth checking first and the fixes that actually hold. Named categories, because failures you cannot name are failures you cannot count.",
+    "premise": "Teams describe agent failures case by case — \"it gave a weird answer on Tuesday\". Without shared names there are no rates, and without rates you fix whatever was complained about loudest instead of what happens most often. This taxonomy exists to make agent failures countable."
+  },
+  "symptoms": [
+    {
+      "id": "tool-arg-hallucination",
+      "slug": "hallucinated-tool-arguments",
+      "symptom": "The agent calls the right tool with invented arguments",
+      "aka": [
+        "agent hallucinates tool arguments",
+        "LLM passes wrong parameters to function call",
+        "agent invents IDs that do not exist"
+      ],
+      "pillar": "reliability",
+      "frequency": "very common",
+      "severity": "critical",
+      "summary": "The model picks a correct tool but fabricates its inputs — a plausible-looking customer ID, an out-of-range date, an enum value that was never defined. This is the failure mode most likely to cause real-world damage rather than merely a bad answer, because the call succeeds against a real system.",
+      "causes": [
+        {
+          "cause": "No schema validation between model output and execution",
+          "why": "Model output is text. If nothing validates it before it becomes a function call, any string reaches your system.",
+          "check": "Trace one tool call end to end. Count the validation steps between the model's response and the side effect. If the answer is zero, this is your problem."
+        },
+        {
+          "cause": "Tool descriptions are ambiguous about identifier format",
+          "why": "If the description says \"the customer ID\" without stating the shape, the model infers a plausible one from context — often from an unrelated example in the conversation.",
+          "check": "Re-read your tool schemas as if you were a new engineer. Any field whose format is not obvious will eventually be guessed."
+        },
+        {
+          "cause": "Authorisation is trusted from the agent rather than re-checked",
+          "why": "An agent asked to fetch \"my invoices\" may pass a different tenant's ID. If the tool trusts the argument, isolation is broken by a hallucination.",
+          "check": "Ask whether a tool call could reference another tenant's data and still succeed. Test it deliberately."
+        }
+      ],
+      "fixes": [
+        {
+          "fix": "Validate every tool input against a strict schema",
+          "detail": "Reject rather than coerce. A hard failure the agent can retry against is safer than a silently corrected value that produces a confidently wrong result.",
+          "effort": "1–2 days"
+        },
+        {
+          "fix": "Re-derive identity and authorisation server-side",
+          "detail": "Never accept tenant or user identifiers from model output. Take them from the authenticated session and ignore what the agent supplied.",
+          "effort": "1–3 days"
+        },
+        {
+          "fix": "Require confirmation or dry-run for irreversible actions",
+          "detail": "Deletes, payments, and outbound messages should either return a preview for confirmation or run against a staging path first.",
+          "effort": "2–4 days"
+        },
+        {
+          "fix": "Log every rejected call as a quality signal",
+          "detail": "Rejection rate per tool is one of the most useful agent health metrics, and almost nobody tracks it.",
+          "effort": "Half a day"
+        }
+      ],
+      "related": [
+        "silent-truncation",
+        "nondeterminism"
+      ],
+      "question": "Why does my AI agent call tools with made-up arguments?"
+    },
+    {
+      "id": "runaway-loop",
+      "slug": "agent-loops-forever",
+      "symptom": "The agent loops, repeating the same step until something kills it",
+      "aka": [
+        "AI agent infinite loop",
+        "agent repeats the same tool call",
+        "agent never terminates"
+      ],
+      "pillar": "cost",
+      "frequency": "very common",
+      "severity": "critical",
+      "summary": "The agent calls a tool, dislikes the result, and calls it again with near-identical arguments — indefinitely. Every iteration is billed. Discovered either via a timeout or via an invoice.",
+      "causes": [
+        {
+          "cause": "No maximum step count per run",
+          "why": "Agent loops are while-loops with a language model as the condition. Without a hard bound, a model that never reports satisfaction never exits.",
+          "check": "Find the max-iterations value in your orchestration code. If there is not one, this will happen to you."
+        },
+        {
+          "cause": "A tool returns an error the model cannot act on",
+          "why": "An opaque \"500 Internal Server Error\" gives the model nothing to change, so it retries the identical call, reasoning that it may work this time.",
+          "check": "Look at what your tools return on failure. Errors should say what was wrong and what to do differently."
+        },
+        {
+          "cause": "No progress detection between steps",
+          "why": "Nothing notices that step 14 is identical to step 11. Repetition is the clearest possible signal of a stuck agent and it usually goes unmonitored.",
+          "check": "Hash each tool call and its arguments. Alert when the same hash repeats within a run."
+        }
+      ],
+      "fixes": [
+        {
+          "fix": "Hard step ceiling per run, plus a wall-clock timeout",
+          "detail": "Both, not either. A ceiling bounds cost, a timeout bounds user-visible latency, and they fail in different situations.",
+          "effort": "Half a day"
+        },
+        {
+          "fix": "Return actionable errors from tools",
+          "detail": "\"Customer 4471 not found — search by email instead\" gives the model a different action. \"Error 500\" does not.",
+          "effort": "1–2 days"
+        },
+        {
+          "fix": "Detect repetition and break out deliberately",
+          "detail": "On the second identical call, inject a message naming the repetition and requiring a different approach. On the third, stop and escalate.",
+          "effort": "1 day"
+        },
+        {
+          "fix": "Cap spend per run, not just per month",
+          "detail": "A per-run token budget turns an unbounded incident into a bounded, logged, and alertable one.",
+          "effort": "1 day"
+        }
+      ],
+      "related": [
+        "cost-spike",
+        "latency-tail"
+      ],
+      "question": "Why does my AI agent get stuck in a loop?"
+    },
+    {
+      "id": "cost-spike",
+      "slug": "unexpected-llm-cost-spike",
+      "symptom": "Spend jumped several times over with no corresponding traffic increase",
+      "aka": [
+        "LLM costs suddenly increased",
+        "unexpected OpenAI bill",
+        "agent token usage spike"
+      ],
+      "pillar": "cost",
+      "frequency": "common",
+      "severity": "high",
+      "summary": "Month-over-month spend multiplies while usage looks flat. Almost always caused by per-call token growth rather than more calls — and invisible if you only monitor request counts.",
+      "causes": [
+        {
+          "cause": "Conversation history grows without bound",
+          "why": "Resending the whole transcript each turn makes per-turn cost grow linearly with turn count. A 40-turn conversation can cost twenty times a 5-turn one.",
+          "check": "Chart input tokens against turn index. A rising line is your answer."
+        },
+        {
+          "cause": "Retrieval started returning more or larger chunks",
+          "why": "A re-indexed corpus or a changed top-k silently multiplies input tokens on every single call.",
+          "check": "Compare average retrieved-context length before and after your last indexing change."
+        },
+        {
+          "cause": "Tool definitions grew",
+          "why": "Every tool schema is billed on every call. Adding eight verbose tools raises the floor cost of all traffic, including calls that use none of them.",
+          "check": "Count tokens in your serialised tool definitions. Compare to average input tokens per call."
+        },
+        {
+          "cause": "A silent fallback to a more expensive model",
+          "why": "Rate limits or errors on a cheap model can fall through to an expensive one. Behaviour looks correct; unit cost changes by an order of magnitude.",
+          "check": "Group spend by model ID. Any traffic on a model you did not intend to use is the finding."
+        }
+      ],
+      "fixes": [
+        {
+          "fix": "Track cost per conversation as a product metric",
+          "detail": "Not monthly total — per unit of work, on the same dashboard as your other product metrics, so drift is visible in days rather than at invoice time.",
+          "effort": "2–3 days"
+        },
+        {
+          "fix": "Bound history explicitly",
+          "detail": "Sliding window, summarisation of older turns, or both. Choose deliberately; unbounded is not a choice, it is an omission.",
+          "effort": "2–4 days"
+        },
+        {
+          "fix": "Cache stable prompt prefixes",
+          "detail": "System prompts and tool definitions are ideal candidates. A cache read costs about a tenth of base input — but only pays off once content is genuinely re-read.",
+          "effort": "1–2 days"
+        },
+        {
+          "fix": "Alert on cost per conversation, not spend",
+          "detail": "A budget alert fires after the money is gone. A unit-cost alert fires while it is still a bug.",
+          "effort": "1 day"
+        }
+      ],
+      "related": [
+        "runaway-loop",
+        "context-degradation"
+      ],
+      "question": "Why did my LLM costs suddenly increase without more traffic?"
+    },
+    {
+      "id": "works-in-dev",
+      "slug": "works-in-dev-fails-in-production",
+      "symptom": "It works on our test prompts and fails on real users",
+      "aka": [
+        "agent works in testing but not production",
+        "LLM fails on real user input",
+        "demo works but production does not"
+      ],
+      "pillar": "reliability",
+      "frequency": "very common",
+      "severity": "high",
+      "summary": "The team's test inputs are clean, well-formed, and written by people who know how the system works. Real inputs are terse, misspelled, multilingual, contradictory, or adversarial. The gap between those two distributions is where agents fail.",
+      "causes": [
+        {
+          "cause": "Eval cases are all team-authored",
+          "why": "You cannot imagine the inputs you would never write. Hand-authored suites systematically omit the malformed middle of the distribution.",
+          "check": "Sample 50 real production inputs at random. How many resemble anything in your test set?"
+        },
+        {
+          "cause": "No eval suite at all — testing is manual",
+          "why": "Manual testing checks whether it works today, not whether it still works after the next change.",
+          "check": "If a prompt changed right now, what would tell you something broke, other than a customer?"
+        },
+        {
+          "cause": "Happy-path-only coverage",
+          "why": "Empty inputs, contradictory requests, prompt injection attempts, and questions outside scope are all normal traffic and rarely tested.",
+          "check": "Does your suite contain a single case the agent is supposed to refuse?"
+        }
+      ],
+      "fixes": [
+        {
+          "fix": "Build the suite from real traffic",
+          "detail": "Sample real inputs across the distribution, including the confusing ones. Thirty real cases beat three hundred invented ones.",
+          "effort": "3–5 days"
+        },
+        {
+          "fix": "Make production failures flow back automatically",
+          "detail": "One click from a trace to a new eval case. If capturing a failure is manual, it will not happen once the team is busy.",
+          "effort": "2–3 days"
+        },
+        {
+          "fix": "Test refusals and edge cases as first-class requirements",
+          "detail": "What the agent must decline is as much a requirement as what it must do, and needs the same coverage.",
+          "effort": "2 days"
+        }
+      ],
+      "related": [
+        "nondeterminism",
+        "retrieval-miss"
+      ],
+      "question": "Why does my AI agent work in testing but fail with real users?"
+    },
+    {
+      "id": "context-degradation",
+      "slug": "agent-forgets-instructions-long-conversations",
+      "symptom": "The agent ignores its instructions once the conversation gets long",
+      "aka": [
+        "agent forgets system prompt",
+        "LLM loses instructions in long context",
+        "agent drifts over many turns"
+      ],
+      "pillar": "reliability",
+      "frequency": "common",
+      "severity": "medium",
+      "summary": "Early turns follow the rules; by turn twenty the agent has drifted — wrong tone, abandoned constraints, forgotten refusals. Instructions compete with an ever-growing transcript for the model's attention.",
+      "causes": [
+        {
+          "cause": "Instructions appear once, at the very start",
+          "why": "As the transcript grows, a single early instruction becomes a smaller and more distant fraction of the input.",
+          "check": "Reproduce with a 30-turn conversation. If compliance decays with turn count, this is it."
+        },
+        {
+          "cause": "Naive truncation drops the instructions themselves",
+          "why": "A sliding window that keeps the last N messages will eventually slide the system prompt out entirely.",
+          "check": "Print the exact final payload at turn 40 and confirm your constraints are still in it."
+        },
+        {
+          "cause": "Summarisation loses constraints while keeping content",
+          "why": "Summarisers preserve narrative and discard rules, because rules read as boilerplate.",
+          "check": "Inspect a generated summary. Are the operating constraints still present?"
+        }
+      ],
+      "fixes": [
+        {
+          "fix": "Re-assert critical constraints late in the payload",
+          "detail": "Keep hard rules structurally pinned near the end of the input rather than only at the beginning.",
+          "effort": "Half a day"
+        },
+        {
+          "fix": "Separate durable state from conversational history",
+          "detail": "Constraints, entities, and decisions belong in a structured state object rebuilt each turn — not left to survive inside a transcript.",
+          "effort": "3–5 days"
+        },
+        {
+          "fix": "Enforce the important rules in code",
+          "detail": "If a rule genuinely must hold, verify the output rather than trusting the instruction. Prompts are advisory; code is enforcement.",
+          "effort": "2–4 days"
+        },
+        {
+          "fix": "Add long-conversation cases to your evals",
+          "detail": "Most suites test three-turn exchanges. Drift only appears at length, so test at length.",
+          "effort": "1–2 days"
+        }
+      ],
+      "related": [
+        "cost-spike",
+        "nondeterminism"
+      ],
+      "question": "Why does my AI agent forget its instructions in long conversations?"
+    },
+    {
+      "id": "retrieval-miss",
+      "slug": "rag-returns-irrelevant-results",
+      "symptom": "The answer is wrong because retrieval returned the wrong context",
+      "aka": [
+        "RAG returns irrelevant chunks",
+        "vector search bad results",
+        "agent answers from wrong document"
+      ],
+      "pillar": "reliability",
+      "frequency": "very common",
+      "severity": "high",
+      "summary": "The model is behaving correctly given what it was handed — and what it was handed was wrong. Attributing this to hallucination sends teams to tune prompts when the defect is in retrieval.",
+      "causes": [
+        {
+          "cause": "Chunking split the answer across boundaries",
+          "why": "Fixed-size chunking cuts tables, lists, and procedures in half. Neither half retrieves well and neither answers the question.",
+          "check": "Search for a question you know the answer to. Read the retrieved chunks. Is the answer actually in them?"
+        },
+        {
+          "cause": "Semantic similarity is not relevance",
+          "why": "\"How do I cancel?\" is embedding-similar to a page about cancellation fees. Similar topic, wrong answer.",
+          "check": "Measure retrieval separately from generation. Report recall@k against known-good documents."
+        },
+        {
+          "cause": "Stale or duplicated index",
+          "why": "Outdated documents retrieve just as confidently as current ones, and near-duplicates crowd out the single correct source.",
+          "check": "Check the newest document in your index against the newest in the source system."
+        },
+        {
+          "cause": "No grounding check on the output",
+          "why": "Nothing verifies that the answer is actually supported by the retrieved text, so an unsupported claim ships looking identical to a supported one.",
+          "check": "Sample answers and verify each claim against its cited chunk."
+        }
+      ],
+      "fixes": [
+        {
+          "fix": "Measure retrieval as its own component",
+          "detail": "Build a labelled set of question-to-document pairs and track recall@k. Retrieval quality is invisible when only end-to-end answers are scored.",
+          "effort": "3–5 days"
+        },
+        {
+          "fix": "Chunk along document structure, not byte counts",
+          "detail": "Split on headings, sections, and table boundaries. Keep a parent reference so a matched chunk can expand to its full context.",
+          "effort": "2–4 days"
+        },
+        {
+          "fix": "Add hybrid search and reranking",
+          "detail": "Keyword search catches exact identifiers that embeddings miss; a reranker fixes ordering. Together they typically move recall more than any prompt change.",
+          "effort": "3–5 days"
+        },
+        {
+          "fix": "Verify grounding before returning the answer",
+          "detail": "Check that each claim is supported by retrieved text. Say \"I could not find this\" rather than answering unsupported — the single largest trust win available.",
+          "effort": "2–4 days"
+        }
+      ],
+      "related": [
+        "works-in-dev",
+        "context-degradation"
+      ],
+      "question": "Why does my RAG system return irrelevant results?"
+    },
+    {
+      "id": "latency-tail",
+      "slug": "agent-latency-p95-spikes",
+      "symptom": "Average latency looks fine but some users wait forty seconds",
+      "aka": [
+        "agent slow for some users",
+        "LLM p95 latency high",
+        "multi-step agent takes too long"
+      ],
+      "pillar": "cost",
+      "frequency": "common",
+      "severity": "medium",
+      "summary": "Multi-step agents have long tails by construction: each step adds latency, and retries multiply it. Monitoring averages hides exactly the runs where users abandon.",
+      "causes": [
+        {
+          "cause": "Step count varies widely per request",
+          "why": "A two-step run and a fourteen-step run average out to something no user experiences.",
+          "check": "Plot the distribution of steps per run. If it has a long right tail, so does your latency."
+        },
+        {
+          "cause": "Retries are serial and invisible",
+          "why": "Three retries with backoff can add tens of seconds. If retries are not traced, the time appears to vanish into the model call.",
+          "check": "Count retries per run and attribute time to them explicitly."
+        },
+        {
+          "cause": "Sequential tool calls that could run concurrently",
+          "why": "Independent lookups executed one after another add up linearly for no reason.",
+          "check": "Look for consecutive tool calls with no data dependency between them."
+        },
+        {
+          "cause": "Nothing streams, so the user sees nothing",
+          "why": "Even correct latency feels broken with no feedback. Perceived and actual latency are different problems.",
+          "check": "Time to first visible token. If it equals total time, you are not streaming."
+        }
+      ],
+      "fixes": [
+        {
+          "fix": "Alert on p95 and p99 per operation",
+          "detail": "Per operation, not globally — a slow rare path is invisible in an aggregate.",
+          "effort": "1–2 days"
+        },
+        {
+          "fix": "Parallelise independent tool calls",
+          "detail": "Often the largest single latency win, and it changes nothing about output quality.",
+          "effort": "2–3 days"
+        },
+        {
+          "fix": "Stream, and show step progress",
+          "detail": "Naming the current step converts dead waiting into visible progress. Cheap, and it moves abandonment more than most real speedups.",
+          "effort": "2–4 days"
+        },
+        {
+          "fix": "Set a latency budget with a defined degradation",
+          "detail": "Decide in advance what happens at the limit: a partial answer, a cheaper model, or a queued handoff. Do not let the timeout decide.",
+          "effort": "2 days"
+        }
+      ],
+      "related": [
+        "runaway-loop",
+        "cost-spike"
+      ],
+      "question": "Why is my AI agent slow for some users but not others?"
+    },
+    {
+      "id": "nondeterminism",
+      "slug": "same-input-different-output",
+      "symptom": "The same question gives different answers each time",
+      "aka": [
+        "LLM inconsistent responses",
+        "agent not reproducible",
+        "different answer same prompt"
+      ],
+      "pillar": "observability",
+      "frequency": "common",
+      "severity": "medium",
+      "summary": "Some variation is inherent to sampling. The problem is when variation crosses from wording into substance — different numbers, different decisions, different tool calls — and you cannot tell which kind you have.",
+      "causes": [
+        {
+          "cause": "Variation is never measured",
+          "why": "Without running the same input repeatedly, nobody knows whether variance is cosmetic or material.",
+          "check": "Run twenty identical inputs. Diff the outputs. Are the decisions stable even where the wording is not?"
+        },
+        {
+          "cause": "Free-text output where structure was needed",
+          "why": "Prose invites rephrasing. A constrained schema removes the room for substantive drift.",
+          "check": "Any output another system consumes should be structured, not parsed out of prose."
+        },
+        {
+          "cause": "Non-deterministic retrieval upstream",
+          "why": "Approximate vector search can return different neighbours across calls, so the model sees different context for an identical question.",
+          "check": "Log retrieved document IDs. Are they stable for a repeated query?"
+        },
+        {
+          "cause": "Silent model version drift",
+          "why": "A floating model alias changes underneath you. Behaviour shifts with no deploy on your side.",
+          "check": "Pin explicit model versions and log the exact version served on every call."
+        }
+      ],
+      "fixes": [
+        {
+          "fix": "Constrain outputs to a schema",
+          "detail": "Structured output eliminates most substantive variance for anything programmatic. Reserve prose for text a human reads.",
+          "effort": "2–3 days"
+        },
+        {
+          "fix": "Score consistency in your evals",
+          "detail": "Run each case several times and assert agreement on the decision, not on the wording. Consistency is a measurable property.",
+          "effort": "2 days"
+        },
+        {
+          "fix": "Pin model versions explicitly and log them",
+          "detail": "Never depend on a floating alias in production. Upgrade deliberately, behind your eval suite.",
+          "effort": "Half a day"
+        }
+      ],
+      "related": [
+        "works-in-dev",
+        "retrieval-miss"
+      ],
+      "question": "Why does my LLM give different answers to the same question?"
+    },
+    {
+      "id": "silent-truncation",
+      "slug": "agent-output-silently-truncated",
+      "symptom": "Output is cut off mid-way and nothing reports an error",
+      "aka": [
+        "LLM response truncated",
+        "agent output incomplete",
+        "max tokens hit silently"
+      ],
+      "pillar": "observability",
+      "frequency": "common",
+      "severity": "high",
+      "summary": "The model hits its output limit and stops. The response is well-formed enough to look complete, so downstream code accepts it — and a truncated list, a half-written record, or invalid JSON propagates as if it were valid.",
+      "causes": [
+        {
+          "cause": "The stop reason is never inspected",
+          "why": "Every provider reports why generation ended. Code that ignores that field cannot distinguish a finished answer from a severed one.",
+          "check": "Search your codebase for the stop-reason field. If it is never read, you have this bug now."
+        },
+        {
+          "cause": "Output limit too low for worst-case responses",
+          "why": "Limits get set from typical output length. The long tail exceeds them, and the tail is where the important answers are.",
+          "check": "Chart output token counts. How much traffic sits at exactly the ceiling? That is all truncated."
+        },
+        {
+          "cause": "Structured output parsed leniently",
+          "why": "Forgiving parsers salvage truncated JSON into a valid-looking object with missing fields, turning a loud failure into a silent one.",
+          "check": "Feed deliberately truncated JSON to your parser. Does it throw, or return something plausible?"
+        }
+      ],
+      "fixes": [
+        {
+          "fix": "Treat a length-based stop reason as an error",
+          "detail": "Never return a length-truncated response as success. Retry with a higher limit, or split the task.",
+          "effort": "Half a day"
+        },
+        {
+          "fix": "Validate structured output strictly",
+          "detail": "Required fields must be required. Reject on missing, do not default — a defaulted field is a wrong answer with no trace.",
+          "effort": "1–2 days"
+        },
+        {
+          "fix": "Alert on the rate of length-capped responses",
+          "detail": "A rising rate means your limits no longer fit your traffic. It is a leading indicator, and almost never monitored.",
+          "effort": "Half a day"
+        }
+      ],
+      "related": [
+        "tool-arg-hallucination",
+        "nondeterminism"
+      ],
+      "question": "Why is my AI agent output cut off without an error?"
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+name: Deploy to GitHub Pages
+
+# Mirror deployment. Cloudflare Pages is the primary target (it supports _headers and
+# gives free privacy-friendly analytics); this keeps a working GitHub Pages copy from
+# the same commit with no code changes.
+#
+# Set the repository variable SITE_URL to your canonical origin, e.g.
+#   https://durgeshrathod.com
+# and, ONLY if deploying to a project site rather than a custom domain or user site,
+# set BASE_PATH to the repo name, e.g. /durgesh-portfolio
+#
+# A custom domain is strongly preferred: canonical URLs, OG images and the sitemap all
+# derive from SITE_URL, and a github.io URL undercuts a page selling consulting.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        env:
+          SITE_URL: ${{ vars.SITE_URL || 'https://durgeshrathod.github.io' }}
+          BASE_PATH: ${{ vars.BASE_PATH || '/' }}
+        run: npm run build
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

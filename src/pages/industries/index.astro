@@ -1,0 +1,141 @@
+---
+import Base from '../../layouts/Base.astro';
+import CtaRow from '../../components/CtaRow.astro';
+import industries from '../../data/industries.json';
+import { href } from '../../lib/paths.ts';
+import { breadcrumbSchema, canonical } from '../../lib/seo.ts';
+
+const list = [...industries.industries].sort((a, b) => a.order - b.order);
+
+const schema = [
+  {
+    '@type': 'CollectionPage',
+    name: 'Industries — domains where I have shipped production AI',
+    description: industries.meta.description,
+    hasPart: list.map((x) => ({
+      '@type': 'Article',
+      headline: x.h1,
+      description: x.description,
+      url: canonical(`/industries/${x.slug}`),
+    })),
+  },
+  breadcrumbSchema([
+    { name: 'Home', path: '/' },
+    { name: 'Industries', path: '/industries' },
+  ]),
+];
+---
+
+<Base
+  title="Industries — where I have shipped production AI"
+  description="Four domains with real shipped systems behind them: HR technology, recruitment and ATS, telecom and high-throughput data platforms, and legal contract lifecycle management. Each with the constraint that makes agents hard there."
+  path="/industries"
+  schema={schema}
+>
+  <section class="container-page pt-14 pb-10">
+    <nav aria-label="Breadcrumb" class="text-sm" style="color: var(--fg-subtle);">
+      <a href={href('/')} class="hover:underline">Home</a>
+      <span class="mx-1.5" aria-hidden="true">/</span>
+      <span style="color: var(--fg-muted);">Industries</span>
+    </nav>
+
+    <h1 class="text-h1 mt-8 max-w-3xl font-semibold" style="text-wrap: balance;">
+      Four domains I have actually shipped in
+    </h1>
+    <p class="text-lead mt-5 max-w-3xl" style="color: var(--fg-muted);">
+      {industries.meta.premise}
+    </p>
+  </section>
+
+  <section class="container-page pb-16">
+    <div class="grid gap-5">
+      {
+        list.map((x, i) => (
+          <a
+            href={href(`/industries/${x.slug}`)}
+            class="group grid gap-6 rounded-2xl border p-7 transition-transform hover:-translate-y-0.5 lg:grid-cols-[200px_1fr] lg:gap-10"
+            style="background: var(--bg-raised); box-shadow: var(--shadow-card);"
+            data-reveal
+            data-reveal-delay={i * 60}
+          >
+            <div>
+              <p class="text-h2 font-semibold tabular-nums tracking-tight" style="color: var(--accent);">
+                {x.proof.stat}
+              </p>
+              <p class="mt-1 text-xs font-semibold uppercase tracking-wider" style="color: var(--fg-subtle);">
+                {x.proof.label}
+              </p>
+              {(x as Record<string, any>).regulatory && (
+                <p
+                  class="mt-3 inline-block rounded-md px-2 py-0.5 text-[11px] font-semibold"
+                  style="background: var(--accent-soft); color: var(--accent);"
+                >
+                  Regulated domain
+                </p>
+              )}
+            </div>
+
+            <div>
+              <h2 class="text-h3 font-semibold leading-snug">{x.name}</h2>
+              <p class="mt-2 text-[15px] font-medium leading-snug">{x.h1}</p>
+              <p class="mt-3 text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+                {x.tagline}
+              </p>
+              <p class="mt-4 flex flex-wrap gap-1.5">
+                {x.systems.slice(0, 4).map((s) => (
+                  <span class="rounded-md border px-2 py-0.5 text-[11px]" style="color: var(--fg-subtle);">
+                    {s}
+                  </span>
+                ))}
+              </p>
+              <span
+                class="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold"
+                style="color: var(--accent);"
+              >
+                The constraint, and what I would do
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  class="size-3.5 transition-transform group-hover:translate-x-0.5"
+                  aria-hidden="true"
+                >
+                  <path d="M5 12h14M13 6l6 6-6 6" />
+                </svg>
+              </span>
+            </div>
+          </a>
+        ))
+      }
+    </div>
+
+    <div class="mt-12 grid gap-5 lg:grid-cols-2">
+      <div class="rounded-2xl border p-7" style="background: var(--bg-raised);">
+        <h2 class="text-h3 font-semibold">Why only four?</h2>
+        <p class="mt-2.5 text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+          Because these are the domains where I have shipped production systems, and an industry
+          page for a domain I had not worked in would be exactly the generic filler that makes
+          these pages worthless. The reliability work itself transfers to any domain — if you are
+          somewhere else, the <a
+            href={href('/solutions')}
+            class="font-medium underline decoration-1 underline-offset-4"
+            style="color: var(--fg);">solution pages</a
+          > are the better starting point.
+        </p>
+      </div>
+
+      <div class="rounded-2xl border p-7" style="background: var(--bg-raised);">
+        <h2 class="text-h3 font-semibold">Different domain, same problems?</h2>
+        <p class="mt-2.5 text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+          Unvalidated tool arguments, unbounded loops, missing evals and cost with no ceiling look
+          the same everywhere. Tell me what you are building and I will tell you which of these
+          constraints applies to you.
+        </p>
+        <div class="mt-6">
+          <CtaRow source="industries-hub" intent="general" primaryLabel="Tell me your domain" booking={false} email={false} />
+        </div>
+      </div>
+    </div>
+  </section>
+</Base>

@@ -1,0 +1,52 @@
+---
+import Base from '../layouts/Base.astro';
+import { href } from '../lib/paths.ts';
+
+const destinations = [
+  { label: 'Home', path: '/', detail: 'What I do and who it is for' },
+  { label: 'Readiness Scorecard', path: '/scorecard', detail: 'Score your agent in four minutes' },
+  { label: 'Failure Taxonomy', path: '/tools/failure-taxonomy', detail: 'Nine ways agents fail' },
+  { label: 'Cost Calculator', path: '/tools/agent-cost-calculator', detail: 'What your agent really costs' },
+  { label: 'Case studies', path: '/work', detail: 'Systems taken to production' },
+  { label: 'Work with me', path: '/work-with-me', detail: 'Engagements and prices' },
+];
+---
+
+<Base
+  title="Page not found"
+  description="That page does not exist. Here is everything that does."
+  path="/404"
+  noindex
+>
+  <section class="container-page py-20">
+    <p class="font-mono text-sm font-bold" style="color: var(--accent);">404</p>
+    <h1 class="text-h1 mt-3 max-w-2xl font-semibold" style="text-wrap: balance;">
+      That page does not exist.
+    </h1>
+    <p class="text-lead mt-5 max-w-xl" style="color: var(--fg-muted);">
+      Either I moved it or the link was wrong. Here is everything that is actually here — or
+      press <kbd class="rounded border px-1.5 py-0.5 font-mono text-[13px]">⌘K</kbd> to search.
+    </p>
+
+    <ul class="mt-12 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {
+        destinations.map((d) => (
+          <li>
+            <a
+              href={href(d.path)}
+              class="group block rounded-xl border p-5 transition-transform hover:-translate-y-0.5"
+              style="background: var(--bg-raised);"
+            >
+              <p class="font-semibold group-hover:underline decoration-1 underline-offset-4">
+                {d.label}
+              </p>
+              <p class="mt-1 text-[13px] leading-relaxed" style="color: var(--fg-muted);">
+                {d.detail}
+              </p>
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+  </section>
+</Base>

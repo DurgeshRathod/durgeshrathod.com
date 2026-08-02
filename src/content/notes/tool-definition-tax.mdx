@@ -1,0 +1,152 @@
+---
+title: 'The tool-definition tax: what your agent pays before it does anything'
+description: 'Every tool schema you attach is billed on every single call, whether the agent uses it or not — plus a per-model tool-use system prompt of 286 to 804 tokens. Here is how to measure that fixed cost and what it does to your bill at scale.'
+published: '2026-08-02'
+readingMinutes: 7
+keywords:
+  - LLM cost optimisation
+  - tool definitions tokens
+  - agent cost
+  - prompt caching
+  - MCP
+  - tool use pricing
+faq:
+  - q: 'Are tool definitions billed on every API call?'
+    a: 'Yes. Tool schemas are part of the request input, so you pay for all of them on every call regardless of which tools the model actually invokes. Providers also add a tool-use system prompt — on Claude models this ranges from roughly 286 to 804 tokens depending on the model and tool_choice setting.'
+  - q: 'How much do tool definitions cost per month?'
+    a: 'Multiply your tool schema token count by your number of billed calls. At 1,800 tokens of definitions and 200,000 calls a month, that is 360 million input tokens — about $720 at $2 per million, before any of your actual prompt or context. Prompt caching reduces this to roughly a tenth once the prefix is being re-read.'
+  - q: 'How do I reduce tool-definition token cost?'
+    a: 'Three things, in order: cache the prefix containing your tool definitions, since they are stable text; expose only the tools relevant to the current step rather than every tool the agent might ever need; and tighten descriptions, since verbose parameter documentation is billed on every call forever.'
+---
+
+There is a line item in your agent's bill that does not appear in any dashboard: the cost of
+telling the model what it *could* do.
+
+Tool definitions are part of the request input. That means every tool schema you attach is
+billed on every call, whether the model invokes it or not. An agent with fifteen carefully
+documented tools pays for fifteen tool descriptions on every single turn — including the
+turns where it just says "hello" back.
+
+This is not a rounding error at scale, and it is almost never measured.
+
+## The fixed cost, precisely
+
+Two components make up the tax:
+
+**Your tool schemas.** Names, descriptions, parameter definitions, enum values, and any
+examples you included. This is entirely under your control and usually larger than people
+expect — a thorough schema for one tool with five documented parameters can run 150–300
+tokens on its own.
+
+**The provider's tool-use system prompt.** When you pass tools, the API injects its own
+instructions teaching the model how to call them. On Claude models these are documented and
+vary by model and by `tool_choice`:
+
+| Model | `auto` / `none` | `any` / `tool` |
+| --- | --- | --- |
+| Claude Opus 5 | 286 tokens | 406 tokens |
+| Claude Opus 4.8 | 290 tokens | 410 tokens |
+| Claude Opus 4.7 | 675 tokens | 804 tokens |
+| Claude Sonnet 5 | 354 tokens | 474 tokens |
+| Claude Haiku 4.5 | 496 tokens | 588 tokens |
+
+Two things worth noticing. First, forcing tool use with `any` or `tool` costs roughly 100–130
+tokens more than leaving it on `auto` — a small, permanent surcharge on every call. Second,
+the numbers are not monotonic across generations: Opus 4.7 carries 675 tokens where Opus 5
+carries 286. Upgrading a model can silently change your fixed overhead in either direction.
+
+Specific tools add more on top. The bash tool adds 325 tokens on Opus 4.7 and later. The text
+editor tool adds 700. Computer use adds 735 for the tool plus 466–499 for its system prompt
+extension — well over a thousand tokens before the agent has read anything.
+
+## What this costs in money
+
+Take a moderately complex agent: 1,800 tokens of tool definitions, 200,000 billed calls a
+month.
+
+```
+1,800 tokens × 200,000 calls = 360,000,000 input tokens/month
+```
+
+At $2 per million input tokens, that is **$720 a month to repeatedly describe your tools** —
+before a single token of actual prompt, retrieved context, or conversation history. At
+frontier-model pricing of $5 per million it is $1,800.
+
+Annualised, that is $8,600 to $21,600 for text that never changes.
+
+Run your own numbers in the [agent cost
+calculator](/tools/agent-cost-calculator) — the tool-definition field is deliberately
+separate from the prompt field so you can see this component in isolation. On most realistic
+workloads it lands between 8% and 25% of total input cost.
+
+## The three fixes, in order of return
+
+### 1. Cache the prefix
+
+Tool definitions are perfectly stable text sitting at the front of your request. That is the
+textbook case for prompt caching.
+
+A cache read costs about 10% of base input price. So that $720 becomes roughly $72 for the
+cached portion, once the cache is being hit.
+
+The caveat that catches people: **cache writes cost more than ordinary input.** A 5-minute
+cache write is 1.25× base price, a 1-hour write is 2×. Caching only pays off once content is
+genuinely re-read — after one read for the 5-minute tier, two for the 1-hour tier. If your
+traffic is sparse enough that the cache expires between calls, you are paying the write
+premium repeatedly and saving nothing.
+
+Check your cache hit rate before assuming caching is working. A cache with a 15% hit rate on
+the 1-hour tier is actively costing you money.
+
+### 2. Only expose the tools the current step needs
+
+This is the fix that changes the architecture rather than the config, and it is usually the
+larger win.
+
+Agents are typically given every tool they might ever need, for the whole run. But most
+multi-step agents move through phases: gather information, then decide, then act. The tools
+relevant to phase three are dead weight in phase one — billed, and worse, cluttering the
+decision space in a way that measurably degrades tool selection accuracy.
+
+Scoping tools per phase cut definition overhead by roughly half on the lead-generation
+pipeline I describe in [this case
+study](/work/multi-agent-orchestration), and tool-selection errors went down rather than up.
+Fewer options, better choices — the same thing that happens with humans.
+
+This is also the strongest practical argument for role-separated agents: not "collaboration",
+just that each role carries only its own tools.
+
+### 3. Write shorter descriptions
+
+Least glamorous, immediately available. Tool descriptions written in the exploratory phase
+tend to include examples, edge-case notes, and reminders that were useful to the engineer
+writing them and are now billed forever.
+
+Be specific about format — ambiguous identifier formats cause [hallucinated
+arguments](/tools/failure-taxonomy#hallucinated-tool-arguments), so this is not an invitation
+to be vague. But `"ISO 8601 date"` does the job that a three-line explanation with two
+examples was doing.
+
+A useful discipline: put your serialised tool definitions through a token counter and treat
+the result as a budget. Teams that have never done this are routinely surprised by a factor
+of two or three.
+
+## Why this stays invisible
+
+Provider dashboards report total input tokens. They do not decompose input into "prompt",
+"history", "retrieved context", and "tool definitions" — so the one component that is
+constant, predictable, and trivially reducible looks identical to the components that are
+not.
+
+The fix is the same as for every other agent cost problem: **attribute cost at the component
+level, not the invoice level.** Log token counts by category on every call. Once tool
+definitions are a line on a chart rather than an undifferentiated part of a total, the
+optimisation becomes obvious and someone will do it in an afternoon.
+
+That principle generalises well beyond this one line item, and it is the second question I
+ask on the [readiness scorecard](/scorecard) for exactly that reason.
+
+---
+
+*Token counts above are from Anthropic's published pricing documentation, verified 2 August
+2026. They change between model releases — re-check before building a forecast on them.*

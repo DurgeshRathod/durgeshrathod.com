@@ -1,0 +1,35 @@
+# Cloudflare Pages header rules.
+# GitHub Pages ignores this file entirely — it cannot serve custom headers. That is the
+# one real capability difference between the two targets; everything else is identical.
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: SAMEORIGIN
+  Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  # No inline-script hash list here: Astro emits several small inline scripts and a
+  # strict CSP would need regenerating on every build. Revisit if a build-time
+  # CSP-hash integration is added.
+
+# Immutable fingerprinted assets
+/_astro/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/fonts/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/og/*
+  Cache-Control: public, max-age=604800
+
+# Machine-readable summaries — kept fresh so assistants re-read them.
+/llms.txt
+  Content-Type: text/plain; charset=utf-8
+  Cache-Control: public, max-age=3600
+
+/llms-full.txt
+  Content-Type: text/plain; charset=utf-8
+  Cache-Control: public, max-age=3600
+
+/robots.txt
+  Cache-Control: public, max-age=3600

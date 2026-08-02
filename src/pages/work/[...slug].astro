@@ -1,0 +1,166 @@
+---
+import type { GetStaticPaths } from 'astro';
+import { getCollection, render } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import CtaRow from '../../components/CtaRow.astro';
+import { PILLARS } from '../../consts.ts';
+import { href } from '../../lib/paths.ts';
+import { caseStudySchema, breadcrumbSchema } from '../../lib/seo.ts';
+
+export const getStaticPaths: GetStaticPaths = async () => {
+  const entries = (await getCollection('work')).filter((e) => !e.data.draft);
+  return entries.map((entry) => ({ params: { slug: entry.id }, props: { entry } }));
+};
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+const d = entry.data;
+
+const all = (await getCollection('work'))
+  .filter((e) => !e.data.draft)
+  .sort((a, b) => a.data.order - b.data.order);
+const idx = all.findIndex((e) => e.id === entry.id);
+const next = all[(idx + 1) % all.length];
+
+const pillarName = (id: string) => PILLARS.find((p) => p.id === id)?.name ?? id;
+
+const schema = [
+  caseStudySchema({
+    title: d.title,
+    description: d.description,
+    path: `/work/${entry.id}`,
+    published: d.published,
+    updated: d.updated,
+    keywords: d.keywords,
+  }),
+  breadcrumbSchema([
+    { name: 'Home', path: '/' },
+    { name: 'Work', path: '/work' },
+    { name: d.cardTitle ?? d.title, path: `/work/${entry.id}` },
+  ]),
+];
+---
+
+<Base
+  title={d.title}
+  description={d.description}
+  path={`/work/${entry.id}`}
+  schema={schema}
+  published={d.published}
+  updated={d.updated}
+>
+  <article>
+    <!-- ── Header ─────────────────────────────────────────────────────── -->
+    <header class="container-page pt-14 pb-10">
+      <nav aria-label="Breadcrumb" class="text-sm" style="color: var(--fg-subtle);">
+        <a href={href('/')} class="hover:underline">Home</a>
+        <span class="mx-1.5" aria-hidden="true">/</span>
+        <a href={href('/work')} class="hover:underline">Work</a>
+      </nav>
+
+      <p class="mt-8 text-xs font-semibold uppercase tracking-[0.14em]" style="color: var(--accent);">
+        Case study · {d.pillars.map(pillarName).join(' & ')}
+      </p>
+      <h1 class="text-h1 mt-3 max-w-4xl font-semibold" style="text-wrap: balance;">
+        {d.title}
+      </h1>
+      <p class="text-lead mt-5 max-w-2xl" style="color: var(--fg-muted);">
+        {d.description}
+      </p>
+
+      <!-- Fact table: the scannable summary before the prose. -->
+      <dl class="mt-10 grid gap-x-8 gap-y-5 rounded-2xl border p-6 sm:grid-cols-2 lg:grid-cols-4" style="background: var(--bg-raised);">
+        <div>
+          <dt class="text-xs font-semibold uppercase tracking-wider" style="color: var(--fg-subtle);">
+            {d.headlineStat.label}
+          </dt>
+          <dd class="text-h3 mt-1.5 font-semibold tabular-nums" style="color: var(--accent);">
+            {d.headlineStat.value}
+          </dd>
+        </div>
+        <div>
+          <dt class="text-xs font-semibold uppercase tracking-wider" style="color: var(--fg-subtle);">
+            My role
+          </dt>
+          <dd class="mt-1.5 text-sm leading-relaxed">{d.role}</dd>
+        </div>
+        <div class="sm:col-span-2">
+          <dt class="text-xs font-semibold uppercase tracking-wider" style="color: var(--fg-subtle);">
+            Stack
+          </dt>
+          <dd class="mt-1.5 flex flex-wrap gap-1.5">
+            {
+              d.stack.map((s) => (
+                <span
+                  class="rounded-md border px-2 py-0.5 font-mono text-[11px]"
+                  style="color: var(--fg-muted);"
+                >
+                  {s}
+                </span>
+              ))
+            }
+          </dd>
+        </div>
+      </dl>
+
+      <!-- The honest bit, pulled out deliberately. -->
+      <div class="mt-5 rounded-2xl border-l-4 p-6" style="border-color: var(--risk); background: var(--bg-raised);">
+        <p class="text-xs font-semibold uppercase tracking-wider" style="color: var(--risk);">
+          What broke
+        </p>
+        <p class="mt-2 max-w-3xl text-[17px] leading-relaxed" style="color: var(--fg);">
+          {d.whatBroke}
+        </p>
+      </div>
+    </header>
+
+    <!-- ── Body ───────────────────────────────────────────────────────── -->
+    <div class="container-prose">
+      <div class="prose">
+        <Content />
+      </div>
+    </div>
+
+    <!-- ── Next + CTA ─────────────────────────────────────────────────── -->
+    <div class="container-page mt-20">
+      <div class="grid gap-5 lg:grid-cols-2">
+        {
+          next && next.id !== entry.id && (
+            <a
+              href={href(`/work/${next.id}`)}
+              class="group rounded-2xl border p-7 transition-transform hover:-translate-y-0.5"
+              style="background: var(--bg-raised);"
+            >
+              <p class="text-xs font-semibold uppercase tracking-wider" style="color: var(--fg-subtle);">
+                Next case study
+              </p>
+              <p class="text-h3 mt-2 font-semibold leading-snug">
+                {next.data.cardTitle ?? next.data.title}
+              </p>
+              <p class="mt-2 text-sm leading-relaxed" style="color: var(--fg-muted);">
+                {next.data.description}
+              </p>
+              <span class="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold" style="color: var(--accent);">
+                Read it
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="size-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true">
+                  <path d="M5 12h14M13 6l6 6-6 6" />
+                </svg>
+              </span>
+            </a>
+          )
+        }
+
+        <div class="rounded-2xl border p-7" style="background: var(--bg-raised);">
+          <h2 class="text-h3 font-semibold">Have a system with a similar shape?</h2>
+          <p class="mt-2.5 text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+            Tell me what it does and what worries you. I will tell you what I would look at
+            first — that part is free.
+          </p>
+          <div class="mt-6">
+            <CtaRow source={`case-${entry.id}`} intent="audit" primaryLabel="Start a conversation" booking={false} />
+          </div>
+        </div>
+      </div>
+    </div>
+  </article>
+</Base>

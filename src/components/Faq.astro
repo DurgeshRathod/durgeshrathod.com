@@ -1,0 +1,53 @@
+---
+import type { QA } from '../lib/seo.ts';
+
+interface Props {
+  items: QA[];
+  /** Heading level for each question. */
+  as?: 'h3' | 'h4';
+}
+
+const { items, as = 'h3' } = Astro.props;
+const H = as;
+
+/*
+  Native <details>/<summary>: keyboard accessible and functional with no JavaScript,
+  and — the part that matters for SEO and AI answer engines — the answer text is real
+  DOM content whether or not the panel is open, so it is crawled and extractable.
+  A JS accordion that injects answers on click is not.
+*/
+---
+
+<div class="divide-y" style="border-color: var(--border);">
+  {
+    items.map((item, i) => (
+      <details name="faq" open={i === 0} class="group py-4">
+        <summary
+          class="flex cursor-pointer list-none items-start justify-between gap-4 text-left"
+        >
+          <H class="text-[16px] font-semibold leading-snug sm:text-[17px]">{item.q}</H>
+          <span
+            class="mt-0.5 grid size-6 shrink-0 place-items-center rounded-md border transition-transform group-open:rotate-45"
+            aria-hidden="true"
+            style="color: var(--fg-subtle);"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="size-3.5">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+          </span>
+        </summary>
+        <div
+          class="mt-3 max-w-2xl text-[15px] leading-relaxed"
+          style="color: var(--fg-muted);"
+          set:html={item.a.replace(/\n\n/g, '</p><p class="mt-3">').replace(/^/, '<p>') + '</p>'}
+        />
+      </details>
+    ))
+  }
+</div>
+
+<style>
+  summary::-webkit-details-marker {
+    display: none;
+  }
+</style>

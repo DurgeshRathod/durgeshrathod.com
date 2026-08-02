@@ -1,0 +1,182 @@
+---
+import { CONTACT, HAS_FORM } from '../consts.ts';
+import { mailtoLink } from '../lib/whatsapp.ts';
+
+/*
+  Static-host contact form.
+
+  Web3Forms is a keyed POST endpoint that emails the submission — no backend, no build
+  step, works identically on Cloudflare Pages and GitHub Pages. If CONTACT.web3FormsKey
+  is empty the component degrades to a structured mailto: link rather than rendering a
+  form that silently discards submissions.
+
+  WhatsApp remains the primary channel; this is for people who will not use it.
+*/
+
+const FALLBACK_BODY = `What you're building:
+
+Framework and model:
+
+Roughly how many conversations a month:
+
+The thing that worries you most:
+
+`;
+---
+
+{
+  HAS_FORM ? (
+    <form
+      data-contact-form
+      action="https://api.web3forms.com/submit"
+      method="POST"
+      class="grid gap-4"
+    >
+      <input type="hidden" name="access_key" value={CONTACT.web3FormsKey} />
+      <input type="hidden" name="subject" value="New enquiry from durgeshrathod.com" />
+      <input type="hidden" name="from_name" value="durgeshrathod.com" />
+      {/* Web3Forms treats a filled 'botcheck' as spam and drops it silently. */}
+      <input type="checkbox" name="botcheck" class="hidden" style="display:none" tabindex="-1" aria-hidden="true" />
+
+      <div class="grid gap-4 sm:grid-cols-2">
+        <label class="grid gap-1.5">
+          <span class="text-sm font-medium">Name</span>
+          <input
+            type="text"
+            name="name"
+            required
+            autocomplete="name"
+            class="rounded-lg border px-3 py-2.5 text-[15px] outline-none transition-colors focus:border-current"
+            style="background: var(--bg); color: var(--fg);"
+          />
+        </label>
+        <label class="grid gap-1.5">
+          <span class="text-sm font-medium">Work email</span>
+          <input
+            type="email"
+            name="email"
+            required
+            autocomplete="email"
+            class="rounded-lg border px-3 py-2.5 text-[15px] outline-none transition-colors focus:border-current"
+            style="background: var(--bg); color: var(--fg);"
+          />
+        </label>
+      </div>
+
+      <div class="grid gap-4 sm:grid-cols-2">
+        <label class="grid gap-1.5">
+          <span class="text-sm font-medium">
+            Company <span style="color: var(--fg-subtle);">(optional)</span>
+          </span>
+          <input
+            type="text"
+            name="company"
+            autocomplete="organization"
+            class="rounded-lg border px-3 py-2.5 text-[15px] outline-none transition-colors focus:border-current"
+            style="background: var(--bg); color: var(--fg);"
+          />
+        </label>
+        <label class="grid gap-1.5">
+          <span class="text-sm font-medium">What are you after?</span>
+          <select
+            name="intent"
+            class="w-full min-w-0 truncate rounded-lg border px-3 py-2.5 text-[15px] outline-none transition-colors focus:border-current"
+            style="background: var(--bg); color: var(--fg);"
+          >
+            <option>Production readiness audit</option>
+            <option>Reliability retainer</option>
+            <option>A specific problem, one-off</option>
+            <option>A full-time or contract role</option>
+            <option>Something else</option>
+          </select>
+        </label>
+      </div>
+
+      <label class="grid gap-1.5">
+        <span class="text-sm font-medium">What are you building, and what worries you?</span>
+        <textarea
+          name="message"
+          rows="6"
+          required
+          placeholder={"Agent: support triage on our help centre\nStack: LangGraph + Sonnet\nVolume: ~15k conversations/month\nWorry: we have no idea if a prompt change breaks anything"}
+          class="rounded-lg border px-3 py-2.5 text-[15px] leading-relaxed outline-none transition-colors focus:border-current"
+          style="background: var(--bg); color: var(--fg);"></textarea>
+        <span class="text-xs" style="color: var(--fg-subtle);">
+          The more specific you are, the more useful my first reply will be.
+        </span>
+      </label>
+
+      <div class="flex flex-wrap items-center gap-3">
+        <button
+          type="submit"
+          data-analytics="contact-form-submit"
+          class="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-[15px] font-semibold transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-60"
+          style="background: var(--accent-solid); color: var(--accent-solid-fg);"
+        >
+          <span data-submit-label>Send enquiry</span>
+        </button>
+        <p data-form-status role="status" aria-live="polite" class="text-sm" style="color: var(--fg-muted);"></p>
+      </div>
+    </form>
+  ) : (
+    <div class="rounded-xl border p-5" style="background: var(--bg-raised);">
+      <p class="text-sm leading-relaxed" style="color: var(--fg-muted);">
+        The email form needs a free Web3Forms access key to be set in{' '}
+        <code class="font-mono text-[13px]" style="color: var(--fg);">src/consts.ts</code>. Until
+        then, this button opens a pre-structured email — which works everywhere and needs no
+        third-party service at all.
+      </p>
+      <a
+        href={mailtoLink('Enquiry from durgeshrathod.com', FALLBACK_BODY)}
+        data-analytics="contact-mailto"
+        class="mt-4 inline-flex items-center gap-2 rounded-xl px-5 py-3 text-[15px] font-semibold transition-opacity hover:opacity-90"
+        style="background: var(--accent-solid); color: var(--accent-solid-fg);"
+      >
+        Open a pre-filled email
+      </a>
+      <p class="mt-3 font-mono text-[13px]" style="color: var(--fg-subtle);">
+        {CONTACT.email}
+      </p>
+    </div>
+  )
+}
+
+<script is:inline>
+  (function () {
+    var form = document.querySelector('[data-contact-form]');
+    if (!form) return;
+    var status = form.querySelector('[data-form-status]');
+    var button = form.querySelector('button[type="submit"]');
+    var label = form.querySelector('[data-submit-label]');
+
+    form.addEventListener('submit', async function (ev) {
+      ev.preventDefault();
+      button.disabled = true;
+      label.textContent = 'Sending…';
+      status.textContent = '';
+      status.style.color = 'var(--fg-muted)';
+
+      try {
+        var res = await fetch(form.action, {
+          method: 'POST',
+          headers: { Accept: 'application/json' },
+          body: new FormData(form),
+        });
+        var data = await res.json();
+        if (res.ok && data.success) {
+          form.reset();
+          label.textContent = 'Sent';
+          status.textContent = 'Got it — I usually reply within a day.';
+          status.style.color = 'var(--good)';
+        } else {
+          throw new Error(data.message || 'Submission failed');
+        }
+      } catch (e) {
+        button.disabled = false;
+        label.textContent = 'Send enquiry';
+        status.textContent = 'That did not go through. WhatsApp or email works instead.';
+        status.style.color = 'var(--risk)';
+      }
+    });
+  })();
+</script>

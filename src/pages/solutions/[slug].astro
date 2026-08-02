@@ -1,0 +1,442 @@
+---
+import type { GetStaticPaths } from 'astro';
+import Base from '../../layouts/Base.astro';
+import CtaRow from '../../components/CtaRow.astro';
+import Faq from '../../components/Faq.astro';
+import solutions from '../../data/solutions.json';
+import taxonomy from '../../data/taxonomy.json';
+import { OFFERS, PILLARS } from '../../consts.ts';
+import { href } from '../../lib/paths.ts';
+import { faqSchema, breadcrumbSchema, articleSchema, ID, type QA } from '../../lib/seo.ts';
+
+/*
+  One template, five pages, all content in src/data/solutions.json. These pages are
+  deliberately templated — they answer the same shape of question about different
+  problems — so consistency is a feature and adding a sixth is a data edit.
+
+  Each page carries its own artefact (the `asset` blocks): a checklist or table that
+  exists nowhere else. That is the difference between a solution page worth reading
+  and the industry-noun-swap SEO pages that get ignored.
+*/
+
+export const getStaticPaths: GetStaticPaths = () =>
+  solutions.solutions.map((s) => ({ params: { slug: s.slug }, props: { s } }));
+
+const { s } = Astro.props;
+
+const pillarName = (id: string) => PILLARS.find((p) => p.id === id)?.name ?? id;
+
+const related = s.relatedFailures
+  .map((id) => taxonomy.symptoms.find((x) => x.id === id))
+  .filter((x): x is (typeof taxonomy.symptoms)[number] => Boolean(x));
+
+const offer = OFFERS.find((o) => o.id === s.engagement) ?? OFFERS[0];
+
+const others = solutions.solutions
+  .filter((o) => o.slug !== s.slug)
+  .sort((a, b) => a.order - b.order);
+
+const totalEffort = s.method.length;
+
+const schema = [
+  articleSchema({
+    title: s.h1,
+    description: s.description,
+    path: `/solutions/${s.slug}`,
+    published: solutions.meta.updated,
+    section: 'Solutions',
+    keywords: s.keywords,
+  }),
+  {
+    '@type': 'Service',
+    name: s.name,
+    serviceType: s.name,
+    description: s.description,
+    provider: { '@id': ID.person },
+    areaServed: { '@type': 'Place', name: 'Worldwide — remote' },
+    offers: {
+      '@type': 'Offer',
+      description: offer.name,
+      priceSpecification: {
+        '@type': 'PriceSpecification',
+        priceCurrency: 'USD',
+        minPrice: offer.priceLow,
+        maxPrice: offer.priceHigh,
+      },
+    },
+  },
+  faqSchema(s.faq as QA[]),
+  breadcrumbSchema([
+    { name: 'Home', path: '/' },
+    { name: 'Solutions', path: '/solutions' },
+    { name: s.name, path: `/solutions/${s.slug}` },
+  ]),
+];
+---
+
+<Base
+  title={s.h1}
+  description={s.description}
+  path={`/solutions/${s.slug}`}
+  schema={schema}
+  published={solutions.meta.updated}
+>
+  <!-- ── Header ─────────────────────────────────────────────────────────── -->
+  <section class="container-page pt-14 pb-10">
+    <nav aria-label="Breadcrumb" class="text-sm" style="color: var(--fg-subtle);">
+      <a href={href('/')} class="hover:underline">Home</a>
+      <span class="mx-1.5" aria-hidden="true">/</span>
+      <a href={href('/solutions')} class="hover:underline">Solutions</a>
+      <span class="mx-1.5" aria-hidden="true">/</span>
+      <span style="color: var(--fg-muted);">{s.name}</span>
+    </nav>
+
+    <p class="mt-8 text-xs font-semibold uppercase tracking-[0.14em]" style="color: var(--accent);">
+      {pillarName(s.pillar)} · {s.name}
+    </p>
+    <h1 class="text-h1 mt-3 max-w-4xl font-semibold" style="text-wrap: balance;">
+      {s.h1}
+    </h1>
+    <p class="text-lead mt-5 max-w-2xl" style="color: var(--fg-muted);">
+      {s.tagline}
+    </p>
+
+    <div class="mt-9">
+      <CtaRow source={`solution-${s.slug}`} intent="audit" primaryLabel="Talk about this" booking={false} />
+    </div>
+  </section>
+
+  <!-- ── Symptoms: the self-diagnosis, and the fastest read on the page ── -->
+  <section class="container-page pb-12">
+    <div class="grid gap-6 lg:grid-cols-[1.15fr_1fr] lg:gap-10">
+      <div class="rounded-2xl border p-7" style="background: var(--bg-raised); box-shadow: var(--shadow-card);">
+        <h2 class="text-h3 font-semibold">You probably have this problem if</h2>
+        <ul class="mt-5 grid gap-3">
+          {
+            s.symptoms.map((sym) => (
+              <li class="flex gap-3 text-[15px] leading-relaxed">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  class="mt-1 size-4 shrink-0"
+                  style="color: var(--risk);"
+                  aria-hidden="true"
+                >
+                  <path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+                </svg>
+                <span style="color: var(--fg-muted);">{sym}</span>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+
+      <div class="grid content-start gap-4">
+        <div class="rounded-2xl border p-6" style="background: var(--bg-raised);">
+          <p class="text-xs font-semibold uppercase tracking-wider" style="color: var(--fg-subtle);">
+            What you end up with
+          </p>
+          <p class="mt-2 text-[17px] font-semibold leading-snug">{s.outcome}</p>
+        </div>
+
+        <dl class="grid gap-4 rounded-2xl border p-6 sm:grid-cols-2" style="background: var(--bg-raised);">
+          <div>
+            <dt class="text-xs font-semibold uppercase tracking-wider" style="color: var(--fg-subtle);">
+              Usually part of
+            </dt>
+            <dd class="mt-1.5 text-sm font-medium">{offer.name}</dd>
+            <dd class="mt-0.5 font-mono text-sm tabular-nums" style="color: var(--accent);">
+              {offer.priceLabel}
+            </dd>
+          </div>
+          <div>
+            <dt class="text-xs font-semibold uppercase tracking-wider" style="color: var(--fg-subtle);">
+              Phases
+            </dt>
+            <dd class="mt-1.5 text-sm" style="color: var(--fg-muted);">
+              {totalEffort} steps, detailed below with effort per step
+            </dd>
+          </div>
+          <div class="sm:col-span-2">
+            <dt class="text-xs font-semibold uppercase tracking-wider" style="color: var(--fg-subtle);">
+              Domains I have done this in
+            </dt>
+            <dd class="mt-1.5 flex flex-wrap gap-1.5">
+              {
+                s.domains.map((d) => (
+                  <span class="rounded-md border px-2 py-0.5 text-[12px]" style="color: var(--fg-muted);">
+                    {d}
+                  </span>
+                ))
+              }
+            </dd>
+          </div>
+        </dl>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Why it matters ─────────────────────────────────────────────────── -->
+  <section class="border-t py-14">
+    <div class="container-prose">
+      <h2 class="text-h2 font-semibold" style="text-wrap: balance;">Why this is the thing to fix</h2>
+      <div class="prose mt-6">
+        {s.why.map((p) => <p>{p}</p>)}
+      </div>
+    </div>
+  </section>
+
+  <!-- ── The artefacts: the reason this page exists ─────────────────────── -->
+  {
+    [s.asset, (s as Record<string, any>).secondAsset]
+      .filter(Boolean)
+      .map((asset: any) => (
+        <section class="border-t py-14">
+          <div class="container-page">
+            <h2 class="text-h2 max-w-3xl font-semibold" style="text-wrap: balance;">
+              {asset.title}
+            </h2>
+            <p class="mt-4 max-w-2xl text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+              {asset.intro}
+            </p>
+
+            {asset.kind === 'table' ? (
+              <div class="scroll-x mt-8">
+                <table class="w-full min-w-[640px] text-sm">
+                  <thead>
+                    <tr class="border-b text-left">
+                      {asset.columns.map((c: string, i: number) => (
+                        <th class:list={['px-3 py-2.5 font-semibold', i > 0 && 'whitespace-nowrap']}>
+                          {c}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {asset.rows.map((row: string[]) => (
+                      <tr class="border-b align-top">
+                        {row.map((cell: string, ci: number) =>
+                          ci === 0 ? (
+                            <th scope="row" class="px-3 py-3 text-left font-medium">
+                              {cell}
+                            </th>
+                          ) : (
+                            <td class="px-3 py-3 leading-relaxed" style="color: var(--fg-muted);">
+                              {cell}
+                            </td>
+                          )
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <ol class="mt-8 grid gap-3">
+                {asset.items.map((item: string, i: number) => (
+                  <li
+                    class="flex gap-4 rounded-xl border p-4"
+                    style="background: var(--bg-raised);"
+                  >
+                    <span
+                      class="grid size-6 shrink-0 place-items-center rounded-md font-mono text-[11px] font-bold"
+                      style="background: var(--accent-soft); color: var(--accent);"
+                    >
+                      {i + 1}
+                    </span>
+                    <span class="text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+                      {item}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            )}
+
+            {asset.note && (
+              <p
+                class="mt-6 max-w-3xl border-l-2 pl-4 text-[15px] leading-relaxed"
+                style="border-color: var(--accent); color: var(--fg-muted);"
+              >
+                {asset.note}
+              </p>
+            )}
+          </div>
+        </section>
+      ))
+  }
+
+  <!-- ── Method ─────────────────────────────────────────────────────────── -->
+  <section class="border-t py-14">
+    <div class="container-page">
+      <h2 class="text-h2 font-semibold">How I actually do it</h2>
+      <p class="text-lead mt-4 max-w-2xl" style="color: var(--fg-muted);">
+        With effort per step, so you can judge whether to hire me or hand this to someone on
+        your team.
+      </p>
+
+      <ol class="mt-10 grid gap-4">
+        {
+          s.method.map((m, i) => (
+            <li
+              class="grid gap-4 rounded-2xl border p-6 sm:grid-cols-[auto_1fr_auto] sm:items-start sm:gap-6"
+              style="background: var(--bg-raised);"
+              data-reveal
+              data-reveal-delay={i * 60}
+            >
+              <span
+                class="grid size-8 shrink-0 place-items-center rounded-lg font-mono text-xs font-bold"
+                style="background: var(--accent-soft); color: var(--accent);"
+              >
+                {i + 1}
+              </span>
+              <div>
+                <h3 class="text-[17px] font-semibold">{m.phase}</h3>
+                <p class="mt-1.5 max-w-2xl text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+                  {m.detail}
+                </p>
+              </div>
+              <span
+                class="font-mono text-[13px] whitespace-nowrap sm:text-right"
+                style="color: var(--fg-subtle);"
+              >
+                {m.effort}
+              </span>
+            </li>
+          ))
+        }
+      </ol>
+
+      <div class="mt-8 rounded-2xl border p-7" style="background: var(--bg-raised);">
+        <h3 class="text-h3 font-semibold">What you keep</h3>
+        <ul class="mt-4 grid gap-2.5 sm:grid-cols-2">
+          {
+            s.deliverables.map((d) => (
+              <li class="flex gap-3 text-[15px]">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="3"
+                  class="mt-1.5 size-3.5 shrink-0"
+                  style="color: var(--good);"
+                  aria-hidden="true"
+                >
+                  <path d="M20 6 9 17l-5-5" />
+                </svg>
+                <span style="color: var(--fg-muted);">{d}</span>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Related failure modes: real internal linking, not filler ───────── -->
+  {
+    related.length > 0 && (
+      <section class="border-t py-14">
+        <div class="container-page">
+          <h2 class="text-h2 font-semibold">Failure modes this prevents</h2>
+          <p class="text-lead mt-4 max-w-2xl" style="color: var(--fg-muted);">
+            From the failure taxonomy — each links to the causes and fixes in full.
+          </p>
+          <div class="mt-8 grid gap-4 md:grid-cols-3">
+            {related.map((r) => (
+              <a
+                href={href(`/tools/failure-taxonomy#${r.slug}`)}
+                class="group rounded-2xl border p-6 transition-transform hover:-translate-y-0.5"
+                style="background: var(--bg-raised);"
+              >
+                <p
+                  class="text-[11px] font-bold uppercase tracking-wide"
+                  style={`color: ${r.severity === 'medium' ? 'var(--warn)' : 'var(--risk)'};`}
+                >
+                  {r.severity} · {r.frequency}
+                </p>
+                <h3 class="mt-2 text-[16px] font-semibold leading-snug group-hover:underline decoration-1 underline-offset-4">
+                  {r.symptom}
+                </h3>
+                <p class="mt-2 text-[13px] leading-relaxed" style="color: var(--fg-muted);">
+                  {r.summary.split('. ')[0]}.
+                </p>
+              </a>
+            ))}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  <!-- ── FAQ ────────────────────────────────────────────────────────────── -->
+  <section class="border-t py-14">
+    <div class="container-page">
+      <h2 class="text-h2 font-semibold">Questions</h2>
+      <div class="mt-8 max-w-3xl">
+        <Faq items={s.faq as QA[]} />
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Close + siblings ───────────────────────────────────────────────── -->
+  <section class="pb-8">
+    <div class="container-page">
+      <div
+        class="rounded-3xl border p-8 sm:p-10"
+        style="background: var(--bg-raised); box-shadow: var(--shadow-card);"
+      >
+        <div class="grid gap-8 lg:grid-cols-[1.3fr_1fr] lg:items-start">
+          <div>
+            <h2 class="text-h2 font-semibold" style="text-wrap: balance;">
+              Want this done, or just want a second opinion on it?
+            </h2>
+            <p class="mt-4 max-w-xl text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+              The method above is genuinely what I do — if your team can run it themselves, run
+              it. If you would rather it were done in a week by someone who has done it before,
+              that is what the {offer.name.toLowerCase()} is for.
+            </p>
+            <div class="mt-8">
+              <CtaRow source={`solution-${s.slug}-close`} intent="audit" primaryLabel="Message me" />
+            </div>
+          </div>
+
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-wider" style="color: var(--fg-subtle);">
+              Other solutions
+            </p>
+            <ul class="mt-3 grid gap-2">
+              {
+                others.map((o) => (
+                  <li>
+                    <a
+                      href={href(`/solutions/${o.slug}`)}
+                      class="group flex items-baseline justify-between gap-3 rounded-lg border p-3 text-sm transition-colors"
+                      style="background: var(--bg);"
+                    >
+                      <span class="font-medium group-hover:underline decoration-1 underline-offset-4">
+                        {o.name}
+                      </span>
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.5"
+                        class="size-3.5 shrink-0 transition-transform group-hover:translate-x-0.5"
+                        style="color: var(--accent);"
+                        aria-hidden="true"
+                      >
+                        <path d="M5 12h14M13 6l6 6-6 6" />
+                      </svg>
+                    </a>
+                  </li>
+                ))
+              }
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</Base>

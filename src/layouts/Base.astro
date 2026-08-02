@@ -1,0 +1,177 @@
+---
+import '../styles/global.css';
+import Seo from '../components/Seo.astro';
+import Nav from '../components/Nav.astro';
+import Footer from '../components/Footer.astro';
+import CommandPalette from '../components/CommandPalette.astro';
+import { SITE } from '../consts.ts';
+import { href } from '../lib/paths.ts';
+
+interface Props {
+  title: string;
+  description: string;
+  path: string;
+  schema?: object[];
+  image?: string;
+  noindex?: boolean;
+  published?: string;
+  updated?: string;
+  titleSuffix?: string;
+  /** Constrains the main column for long-form reading. */
+  prose?: boolean;
+}
+
+const { prose = false, ...seo } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <!--
+      Theme resolution runs before first paint to avoid a flash of the wrong theme.
+      Light is the default: dark is used only when the visitor has explicitly chosen it
+      via the toggle, deliberately ignoring the OS preference. Kept tiny and inline.
+    -->
+    <script is:inline>
+      (function () {
+        var theme = 'light';
+        try {
+          if (localStorage.getItem('theme') === 'dark') theme = 'dark';
+        } catch (e) {
+          /* private mode / storage blocked — fall through to light */
+        }
+        document.documentElement.dataset.theme = theme;
+      })();
+    </script>
+
+    <link rel="preload" href={href('/fonts/inter-latin-variable.woff2')} as="font" type="font/woff2" crossorigin />
+    <link rel="icon" href={href('/favicon.svg')} type="image/svg+xml" />
+    <link rel="apple-touch-icon" href={href('/apple-touch-icon.png')} />
+    <link rel="alternate" type="application/rss+xml" title={`${SITE.name} — Notes`} href={href('/rss.xml')} />
+    <link rel="sitemap" type="application/xml" href={href('/sitemap-index.xml')} />
+
+    <Seo {...seo} />
+  </head>
+
+  <body class="min-h-dvh flex flex-col">
+    <a
+      href="#main"
+      class="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-3 focus:left-3 focus:rounded-lg focus:px-4 focus:py-2 focus:text-sm focus:font-semibold"
+      style="background: var(--accent-solid); color: var(--accent-solid-fg);"
+    >
+      Skip to content
+    </a>
+
+    <Nav />
+
+    <main id="main" class={prose ? 'flex-1 pt-10 pb-24' : 'flex-1 pb-24'}>
+      <slot />
+    </main>
+
+    <Footer />
+    <CommandPalette />
+
+    <!--
+      Scroll reveal. The [data-reveal-ready] flag is added by JS, so without JS
+      (or for a crawler) every element renders visible instead of stuck at opacity 0.
+    -->
+    <script is:inline>
+      (function () {
+        var els = Array.prototype.slice.call(document.querySelectorAll('[data-reveal]'));
+        if (!els.length) return;
+        if (!('IntersectionObserver' in window)) return;
+        if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+        // Anything already in the first viewport is revealed with no animation at all.
+        // Two reasons: the LCP element must never wait on a transition, and above-the-fold
+        // content must never depend on an observer callback to become visible.
+        var fold = window.innerHeight;
+        var deferred = [];
+        els.forEach(function (el) {
+          if (el.getBoundingClientRect().top < fold) el.classList.add('is-revealed');
+          else deferred.push(el);
+        });
+
+        document.documentElement.setAttribute('data-reveal-ready', '');
+
+        if (!deferred.length) return;
+
+        var io = new IntersectionObserver(
+          function (entries) {
+            entries.forEach(function (e) {
+              if (!e.isIntersecting) return;
+              var el = e.target;
+              var delay = Number(el.getAttribute('data-reveal-delay') || 0);
+              setTimeout(function () {
+                el.classList.add('is-revealed');
+              }, delay);
+              io.unobserve(el);
+            });
+          },
+          { rootMargin: '0px 0px -8% 0px', threshold: 0.05 }
+        );
+
+        deferred.forEach(function (el) {
+          io.observe(el);
+        });
+
+        // Failsafe: if the observer never fires for something — an unusual scroll
+        // container, a throttled background tab, a script error elsewhere — reveal
+        // everything rather than leaving content permanently invisible. Hiding content
+        // behind JS is only acceptable if the failure mode is "no animation", never
+        // "no content".
+        setTimeout(function () {
+          deferred.forEach(function (el) {
+            el.classList.add('is-revealed');
+          });
+        }, 3000);
+      })();
+    </script>
+
+    <!--
+      Count-up for proof numbers. Reads the final value from the DOM so the real
+      figure is in the HTML for crawlers and non-JS visitors; JS only animates it.
+    -->
+    <script is:inline>
+      (function () {
+        var nodes = document.querySelectorAll('[data-countup]');
+        if (!nodes.length || !('IntersectionObserver' in window)) return;
+        if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+        function ease(t) {
+          return 1 - Math.pow(1 - t, 3);
+        }
+
+        var io = new IntersectionObserver(
+          function (entries) {
+            entries.forEach(function (entry) {
+              if (!entry.isIntersecting) return;
+              var el = entry.target;
+              var target = Number(el.getAttribute('data-countup'));
+              if (!isFinite(target)) return;
+              var dur = 1100;
+              var start = performance.now();
+              function step(now) {
+                var p = Math.min(1, (now - start) / dur);
+                var v = Math.round(ease(p) * target);
+                el.textContent = v.toLocaleString('en-US');
+                if (p < 1) requestAnimationFrame(step);
+                else el.textContent = target.toLocaleString('en-US');
+              }
+              requestAnimationFrame(step);
+              io.unobserve(el);
+            });
+          },
+          { threshold: 0.4 }
+        );
+
+        nodes.forEach(function (n) {
+          io.observe(n);
+        });
+      })();
+    </script>
+  </body>
+</html>

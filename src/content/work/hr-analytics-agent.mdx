@@ -1,0 +1,155 @@
+---
+title: 'A text-to-SQL agent 2,000 people could actually trust with HR data'
+cardTitle: 'Conversational analytics on multi-tenant HR data'
+description: 'A natural-language analytics agent over sensitive workforce data, serving 2,000 concurrent users across isolated tenants. Reporting went from 2–3 days to under 30 seconds — but only after we stopped trusting the model with the boundary.'
+published: '2026-08-02'
+order: 1
+headlineStat:
+  value: '2–3 days → 30s'
+  label: 'Reporting turnaround'
+role: 'Technical Lead — architecture, AI engineering, delivery'
+stack:
+  - Python
+  - FastAPI
+  - AWS Bedrock
+  - LangChain Agents
+  - PostgreSQL
+  - Vector embeddings / RAG
+  - scikit-learn
+  - Docker
+pillars:
+  - reliability
+  - observability
+keywords:
+  - text-to-SQL
+  - multi-tenant LLM
+  - conversational analytics
+  - HR analytics AI
+  - tenant isolation
+  - RAG
+whatBroke: 'The agent generated a syntactically perfect query that would have read another tenant''s data. The SQL was valid, the intent was innocent, and the isolation existed only in the prompt.'
+---
+
+import ArchitectureDiagram from '../../components/ArchitectureDiagram.astro';
+
+HR teams sat on a workforce database they could not ask questions of. Every "what was
+attrition in the Bangalore engineering team last quarter, split by tenure?" became a
+ticket, and the ticket took two to three days because a human had to write the query,
+sanity-check it, and format the result.
+
+The obvious answer was a natural-language interface over the warehouse. The obvious answer
+is also the one that quietly leaks data across tenants, so most of the engineering went
+into the parts that are not the language model.
+
+## What it had to do
+
+Multiple client organisations shared the platform, each seeing strictly their own data.
+Users asked questions in plain English and got numbers, tables, and charts. Beyond
+descriptive reporting it had to support diagnostic questions — *why* did attrition rise —
+and predictive ones: attrition risk, time-to-fill, time-to-start.
+
+<ArchitectureDiagram
+  title="Question to answer, with the boundary outside the model"
+  caption="The sequence matters more than the components. Authorisation is resolved before the model is involved and re-checked after it responds, because a language model is not an access-control mechanism."
+  nodes={[
+    {
+      id: 'intake',
+      label: 'Question intake',
+      sub: 'FastAPI',
+      detail:
+        'The request arrives with an authenticated session. Tenant identity is taken from that session and never from anything the user or the model says later. This sounds obvious and is the single most important line in the system.',
+      tradeoff:
+        'It means the agent cannot support legitimate cross-tenant questions for platform administrators. We accepted that: a separate, explicitly authorised path is safer than a model deciding when crossing the boundary is acceptable.',
+    },
+    {
+      id: 'schema',
+      label: 'Schema retrieval',
+      sub: 'Vector search over schema docs',
+      detail:
+        'Rather than pasting the entire warehouse schema into the prompt, we retrieved only the tables and columns semantically relevant to the question, along with human-written notes about what each column actually means.',
+      tradeoff:
+        'Retrieval can miss a table, which produces a confidently wrong answer rather than an error. We mitigated it by measuring schema recall separately from answer quality — a distinction most teams never draw.',
+    },
+    {
+      id: 'generate',
+      label: 'SQL generation',
+      sub: 'AWS Bedrock + LangChain',
+      detail:
+        'The model produces a query against the retrieved schema subset. It is given the tenant column convention but is explicitly not trusted to apply it.',
+      tradeoff:
+        'We constrained the model to a subset of SQL — no DDL, no subquery depth beyond two, no joins outside the retrieved set. Some legitimate complex questions became unanswerable. Worth it.',
+      problem: true,
+    },
+    {
+      id: 'gate',
+      label: 'Query gate',
+      sub: 'Parse, rewrite, verify',
+      detail:
+        'Generated SQL is parsed into an AST, checked against an allowlist of operations, and the tenant predicate is injected by us rather than trusted from the model. If the query touches a table outside the authorised set, it never runs.',
+      tradeoff:
+        'A whole extra component to maintain, and it rejects some valid queries. It is also the reason the system was allowed anywhere near real HR data.',
+    },
+    {
+      id: 'execute',
+      label: 'Execution',
+      sub: 'PostgreSQL, read-only role',
+      detail:
+        'Queries run as a read-only role scoped to the tenant, with a statement timeout and a row cap. Defence in depth: even if the gate were bypassed, the database credentials cannot do damage.',
+      tradeoff:
+        'The row cap occasionally truncated large legitimate exports, which we handled by routing those to an async job rather than raising the cap.',
+    },
+    {
+      id: 'predict',
+      label: 'Predictive models',
+      sub: 'scikit-learn',
+      detail:
+        'Attrition, time-to-fill and time-to-start forecasts came from conventional supervised models, not the LLM. Roughly 75% forecasting accuracy, reported with that figure attached rather than presented as certainty.',
+      tradeoff:
+        'Two systems to maintain instead of one. But a gradient-boosted model on tabular HR data beats an LLM at this, is far cheaper per prediction, and can be explained to a sceptical HR director.',
+    },
+    {
+      id: 'respond',
+      label: 'Response assembly',
+      sub: 'Grounding check',
+      detail:
+        'The answer is composed from actual query results, with the executed SQL available behind a disclosure. Every number a user sees is traceable to a query they can inspect.',
+      tradeoff:
+        'Showing the SQL made some stakeholders nervous. It also turned out to be the feature that earned the system trust — analysts checked it, found it correct, and stopped checking.',
+    },
+  ]}
+/>
+
+## What broke
+
+During testing, a user in one tenant asked a question phrased around a department name
+that also existed in another tenant. The model generated valid SQL that resolved that
+department by name, without a tenant predicate — because the tenant predicate lived in
+the system prompt as an instruction, and instructions are advisory.
+
+Nothing leaked; it was caught in a staging environment against synthetic data. But the
+failure was not "the model hallucinated." The model did something reasonable given
+ambiguous input. **The defect was architectural: we had put a security boundary inside a
+probabilistic system.**
+
+That is when the query gate got built. Tenant isolation moved out of the prompt and into
+an AST rewrite that we control, backed by a database role that physically cannot read
+across tenants. The prompt still mentions the convention — it produces better first drafts
+— but nothing depends on the model honouring it.
+
+## What it cost and what it took
+
+- **2,000 concurrent chatbot users** with per-tenant isolation maintained under load.
+- **Reporting turnaround from 2–3 days to under 30 seconds** for the large majority of requests.
+- **~75% forecasting accuracy** on attrition and time-to-fill, reported with the uncertainty attached.
+- The query gate was roughly **two weeks of work** and is the reason the project shipped at all.
+
+## What I would do differently
+
+I would build the eval suite before the second feature rather than after the fifth. We had
+good instincts about failure modes and no systematic way to know whether a prompt change
+made retrieval better or worse. Every improvement was argued rather than measured, which
+is slower and occasionally wrong.
+
+I would also have measured schema retrieval separately from end-to-end answer quality from
+day one. When answers were wrong, we spent time tuning generation prompts when the actual
+defect was upstream in what got retrieved — a mistake I now look for first.

@@ -1,0 +1,134 @@
+---
+import Base from '../../layouts/Base.astro';
+import CtaRow from '../../components/CtaRow.astro';
+import decisions from '../../data/decisions.json';
+import { href } from '../../lib/paths.ts';
+import { breadcrumbSchema, canonical } from '../../lib/seo.ts';
+
+const list = [...decisions.decisions].sort((a, b) => a.order - b.order);
+
+const schema = [
+  {
+    '@type': 'CollectionPage',
+    name: 'For engineering leaders — decision support on AI agent reliability',
+    description: decisions.meta.description,
+    hasPart: list.map((d) => ({
+      '@type': 'Article',
+      headline: d.h1,
+      description: d.description,
+      url: canonical(`/for-leaders/${d.slug}`),
+    })),
+  },
+  breadcrumbSchema([
+    { name: 'Home', path: '/' },
+    { name: 'For leaders', path: '/for-leaders' },
+  ]),
+];
+---
+
+<Base
+  title="For engineering leaders — decisions you own"
+  description="Decision support for whoever approves the work: what an AI agent audit should cover, fourteen questions to ask before launch, build-or-buy on observability, the five metrics worth reporting upward, and how to tell whether you need outside help at all."
+  path="/for-leaders"
+  schema={schema}
+>
+  <section class="container-page pt-14 pb-10">
+    <nav aria-label="Breadcrumb" class="text-sm" style="color: var(--fg-subtle);">
+      <a href={href('/')} class="hover:underline">Home</a>
+      <span class="mx-1.5" aria-hidden="true">/</span>
+      <span style="color: var(--fg-muted);">For leaders</span>
+    </nav>
+
+    <h1 class="text-h1 mt-8 max-w-3xl font-semibold" style="text-wrap: balance;">
+      Decisions you own, not code you write
+    </h1>
+    <p class="text-lead mt-5 max-w-3xl" style="color: var(--fg-muted);">
+      {decisions.meta.premise}
+    </p>
+
+    <p class="mt-6 max-w-2xl rounded-xl border p-4 text-sm leading-relaxed" style="background: var(--bg-raised); color: var(--fg-muted);">
+      <strong style="color: var(--fg);">Engineers:</strong> {decisions.meta.forwardNote}
+    </p>
+  </section>
+
+  <section class="container-page pb-16">
+    <div class="grid gap-5">
+      {
+        list.map((d, i) => (
+          <a
+            href={href(`/for-leaders/${d.slug}`)}
+            class="group grid gap-6 rounded-2xl border p-7 transition-transform hover:-translate-y-0.5 lg:grid-cols-[1.25fr_1fr] lg:gap-10"
+            style="background: var(--bg-raised); box-shadow: var(--shadow-card);"
+            data-reveal
+            data-reveal-delay={i * 60}
+          >
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-wider" style="color: var(--accent);">
+                Decision {i + 1}
+              </p>
+              <h2 class="text-h3 mt-2.5 font-semibold leading-snug">{d.h1}</h2>
+              <p class="mt-2.5 text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+                {d.tagline}
+              </p>
+              <span
+                class="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold"
+                style="color: var(--accent);"
+              >
+                Read the framework
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  class="size-3.5 transition-transform group-hover:translate-x-0.5"
+                  aria-hidden="true"
+                >
+                  <path d="M5 12h14M13 6l6 6-6 6" />
+                </svg>
+              </span>
+            </div>
+
+            <div class="rounded-xl border p-5" style="background: var(--bg);">
+              <p class="text-[11px] font-semibold uppercase tracking-wider" style="color: var(--fg-subtle);">
+                Short answer
+              </p>
+              <p class="mt-2 text-[13px] leading-relaxed" style="color: var(--fg-muted);">
+                {d.answerFirst.split('. ').slice(0, 2).join('. ')}.
+              </p>
+            </div>
+          </a>
+        ))
+      }
+    </div>
+
+    <div class="mt-12 grid gap-5 lg:grid-cols-2">
+      <div class="rounded-2xl border p-7" style="background: var(--bg-raised);">
+        <h2 class="text-h3 font-semibold">Want the answer for your own system?</h2>
+        <p class="mt-2.5 text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+          The scorecard scores your agent across reliability, cost and observability in four
+          minutes and ranks the gaps by risk. It prints to a PDF — which tends to move a planning
+          conversation faster than an opinion does.
+        </p>
+        <a
+          href={href('/scorecard')}
+          data-analytics="leaders-hub-scorecard"
+          class="mt-6 inline-flex items-center gap-2 rounded-xl px-5 py-3 text-[15px] font-semibold transition-opacity hover:opacity-90"
+          style="background: var(--accent-solid); color: var(--accent-solid-fg);"
+        >
+          Run the scorecard
+        </a>
+      </div>
+
+      <div class="rounded-2xl border p-7" style="background: var(--bg-raised);">
+        <h2 class="text-h3 font-semibold">Or just ask</h2>
+        <p class="mt-2.5 text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+          Describe the decision you are weighing and I will tell you what I would do — including
+          when the answer is to handle it internally or do nothing yet.
+        </p>
+        <div class="mt-6">
+          <CtaRow source="leaders-hub" intent="general" primaryLabel="Describe your situation" booking={false} email={false} />
+        </div>
+      </div>
+    </div>
+  </section>
+</Base>

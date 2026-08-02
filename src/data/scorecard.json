@@ -1,0 +1,586 @@
+{
+  "meta": {
+    "version": "1.0",
+    "updated": "2026-08-02",
+    "title": "Agent Production Readiness Scorecard",
+    "shortTitle": "Readiness Scorecard",
+    "description": "Twelve questions that separate an AI agent demo from a system you can bill customers for. Scored across reliability, cost control, and observability.",
+    "maxScorePerQuestion": 3,
+    "estimatedMinutes": 4
+  },
+  "pillars": [
+    {
+      "id": "reliability",
+      "name": "Reliability",
+      "blurb": "Can you prove it still works after a change?"
+    },
+    {
+      "id": "cost",
+      "name": "Cost & latency",
+      "blurb": "Do you know what a conversation costs and how slow it gets?"
+    },
+    {
+      "id": "observability",
+      "name": "Observability",
+      "blurb": "When it fails at 2am, can you find out why?"
+    }
+  ],
+  "questions": [
+    {
+      "id": "eval-suite",
+      "pillar": "reliability",
+      "weight": 3,
+      "question": "Do you have an automated eval suite that runs when a prompt or model changes?",
+      "help": "Not unit tests on your glue code — evals on the agent's actual outputs against known-good cases.",
+      "options": [
+        {
+          "label": "No — we try a few prompts by hand",
+          "score": 0,
+          "signal": "risk"
+        },
+        {
+          "label": "A handful of ad-hoc cases in a notebook",
+          "score": 1,
+          "signal": "risk"
+        },
+        {
+          "label": "A real suite, but someone runs it manually",
+          "score": 2,
+          "signal": "warn"
+        },
+        {
+          "label": "In CI, with a pass threshold that blocks merges",
+          "score": 3,
+          "signal": "good"
+        }
+      ],
+      "gap": {
+        "title": "No regression safety net on agent behaviour",
+        "risk": "critical",
+        "consequence": "Every prompt tweak is an unmeasured bet. You will ship a regression, hear about it from a customer, and have no way to tell which change caused it.",
+        "fix": "Freeze 30–50 real inputs with expected outcomes, score them with a mix of assertions and LLM-as-judge, and gate merges on the aggregate.",
+        "effort": "3–5 days for a first suite that pays for itself immediately",
+        "businessRisk": "You cannot tell whether a change made the product better or worse. Every quality decision is currently a guess.",
+        "effortDays": {
+          "min": 3,
+          "max": 5
+        }
+      }
+    },
+    {
+      "id": "golden-dataset",
+      "pillar": "reliability",
+      "weight": 2,
+      "question": "Are your eval cases drawn from real production traffic?",
+      "help": "Synthetic examples written by the team systematically miss the inputs that actually break agents.",
+      "options": [
+        {
+          "label": "We have no eval cases",
+          "score": 0,
+          "signal": "risk"
+        },
+        {
+          "label": "All hand-written by the team",
+          "score": 1,
+          "signal": "warn"
+        },
+        {
+          "label": "Some real traffic, added occasionally",
+          "score": 2,
+          "signal": "warn"
+        },
+        {
+          "label": "Failures from production flow back into the suite routinely",
+          "score": 3,
+          "signal": "good"
+        }
+      ],
+      "gap": {
+        "title": "Evals do not reflect real user behaviour",
+        "risk": "high",
+        "consequence": "Your suite passes while real users hit failures nobody imagined. Confidence goes up, quality does not.",
+        "fix": "Add a one-click 'capture this run as an eval case' path from your trace viewer, and make triaging new failures a weekly ritual.",
+        "effort": "2–3 days once tracing exists",
+        "businessRisk": "Testing reflects what the team imagined users would do, not what they actually do.",
+        "effortDays": {
+          "min": 2,
+          "max": 3
+        }
+      }
+    },
+    {
+      "id": "prompt-versioning",
+      "pillar": "reliability",
+      "weight": 2,
+      "question": "Are prompts versioned and tied to the deployment that used them?",
+      "help": "If a customer reports a bad answer from last Tuesday, can you reconstruct the exact prompt that produced it?",
+      "options": [
+        {
+          "label": "Prompts are edited in a dashboard or hardcoded inline",
+          "score": 0,
+          "signal": "risk"
+        },
+        {
+          "label": "In git, but no link from a response back to a version",
+          "score": 1,
+          "signal": "warn"
+        },
+        {
+          "label": "Versioned and logged per request",
+          "score": 2,
+          "signal": "good"
+        },
+        {
+          "label": "Versioned, logged, and independently rollback-able",
+          "score": 3,
+          "signal": "good"
+        }
+      ],
+      "gap": {
+        "title": "Prompt changes are untraceable",
+        "risk": "high",
+        "consequence": "Debugging becomes archaeology. You cannot reproduce a reported failure, so you cannot confirm a fix.",
+        "fix": "Treat prompts as versioned artefacts in git, stamp the version onto every trace, and make rollback a deploy-free operation.",
+        "effort": "1–2 days",
+        "businessRisk": "A complaint from last month cannot be investigated, reproduced, or confirmed fixed.",
+        "effortDays": {
+          "min": 1,
+          "max": 2
+        }
+      }
+    },
+    {
+      "id": "tool-validation",
+      "pillar": "reliability",
+      "weight": 3,
+      "question": "Are tool-call arguments validated before execution?",
+      "help": "Models hallucinate arguments: wrong types, invented IDs, out-of-range values, occasionally destructive ones.",
+      "options": [
+        {
+          "label": "No — we pass model output straight through",
+          "score": 0,
+          "signal": "risk"
+        },
+        {
+          "label": "Loose checks on some tools",
+          "score": 1,
+          "signal": "risk"
+        },
+        {
+          "label": "Schema validation on every tool",
+          "score": 2,
+          "signal": "warn"
+        },
+        {
+          "label": "Schema validation plus authorisation checks and dry-run on destructive tools",
+          "score": 3,
+          "signal": "good"
+        }
+      ],
+      "gap": {
+        "title": "Hallucinated tool arguments reach real systems",
+        "risk": "critical",
+        "consequence": "This is the failure mode that causes actual damage rather than just a bad answer — wrong record updated, wrong customer emailed, wrong row deleted.",
+        "fix": "Validate every tool input against a strict schema, re-check authorisation server-side rather than trusting the agent, and require confirmation for irreversible actions.",
+        "effort": "2–4 days, and the highest-value work on this list",
+        "businessRisk": "The agent can act on invented data — updating the wrong record or contacting the wrong customer.",
+        "effortDays": {
+          "min": 2,
+          "max": 4
+        }
+      }
+    },
+    {
+      "id": "cost-visibility",
+      "pillar": "cost",
+      "weight": 3,
+      "question": "Do you know the token cost of a single average conversation?",
+      "help": "A number, not an estimate — attributable per feature, per tenant, or per customer.",
+      "options": [
+        {
+          "label": "No — we see one total on the provider invoice",
+          "score": 0,
+          "signal": "risk"
+        },
+        {
+          "label": "We can estimate it roughly",
+          "score": 1,
+          "signal": "warn"
+        },
+        {
+          "label": "Measured per conversation in aggregate",
+          "score": 2,
+          "signal": "warn"
+        },
+        {
+          "label": "Attributed per feature and per tenant, on a dashboard",
+          "score": 3,
+          "signal": "good"
+        }
+      ],
+      "gap": {
+        "title": "Unit economics are invisible",
+        "risk": "high",
+        "consequence": "You cannot price your product, forecast spend, or tell which feature is quietly consuming the budget. Cost surprises arrive monthly.",
+        "fix": "Log token counts and computed cost on every call with feature and tenant tags, then chart cost per conversation as a first-class product metric.",
+        "effort": "2–3 days",
+        "businessRisk": "You cannot price the product, forecast spend, or say which feature is consuming the budget.",
+        "effortDays": {
+          "min": 2,
+          "max": 3
+        }
+      }
+    },
+    {
+      "id": "cost-ceiling",
+      "pillar": "cost",
+      "weight": 3,
+      "question": "Is there a hard ceiling that stops runaway spend?",
+      "help": "Per-request token caps, per-user daily limits, a global circuit breaker — something that fails closed.",
+      "options": [
+        {
+          "label": "No limits anywhere",
+          "score": 0,
+          "signal": "risk"
+        },
+        {
+          "label": "Provider-level budget alerts only",
+          "score": 1,
+          "signal": "risk"
+        },
+        {
+          "label": "Per-request caps in place",
+          "score": 2,
+          "signal": "warn"
+        },
+        {
+          "label": "Per-request, per-user and global breakers, all tested",
+          "score": 3,
+          "signal": "good"
+        }
+      ],
+      "gap": {
+        "title": "No circuit breaker on spend",
+        "risk": "critical",
+        "consequence": "One looping agent, one adversarial user, or one bad deploy can produce a five-figure bill over a weekend. Alerts notify you after the money is gone.",
+        "fix": "Enforce max token caps per request, rate limits per user per day, and a global kill switch that degrades to a cheaper model or a queue rather than spending without bound.",
+        "effort": "2–3 days",
+        "businessRisk": "One malfunction or one abusive user can produce a five-figure bill over a weekend.",
+        "effortDays": {
+          "min": 2,
+          "max": 3
+        }
+      }
+    },
+    {
+      "id": "model-routing",
+      "pillar": "cost",
+      "weight": 2,
+      "question": "Do you route different tasks to different models by difficulty?",
+      "help": "Classification, extraction, and formatting rarely need your most expensive model.",
+      "options": [
+        {
+          "label": "One model handles everything",
+          "score": 0,
+          "signal": "warn"
+        },
+        {
+          "label": "We picked cheaper models in a couple of places by hand",
+          "score": 1,
+          "signal": "warn"
+        },
+        {
+          "label": "Deliberate routing per task type",
+          "score": 2,
+          "signal": "good"
+        },
+        {
+          "label": "Routing plus caching, with quality measured per tier",
+          "score": 3,
+          "signal": "good"
+        }
+      ],
+      "gap": {
+        "title": "Paying premium rates for trivial work",
+        "risk": "medium",
+        "consequence": "Usually the single largest recoverable line item — often 40–70% of spend on sub-tasks a much cheaper model handles at equal quality.",
+        "fix": "Classify tasks by required capability, route accordingly, add prompt caching on stable system context, and verify quality per tier with your eval suite.",
+        "effort": "3–5 days, typically the fastest measurable ROI",
+        "businessRisk": "You are paying premium rates for work a cheaper model does identically — usually the largest recoverable cost.",
+        "effortDays": {
+          "min": 3,
+          "max": 5
+        }
+      }
+    },
+    {
+      "id": "latency-budget",
+      "pillar": "cost",
+      "weight": 2,
+      "question": "Do you track p95 latency per agent operation, not just the average?",
+      "help": "Averages hide the multi-step runs where users give up and leave.",
+      "options": [
+        {
+          "label": "We do not measure latency",
+          "score": 0,
+          "signal": "risk"
+        },
+        {
+          "label": "Averages only",
+          "score": 1,
+          "signal": "warn"
+        },
+        {
+          "label": "p95 tracked overall",
+          "score": 2,
+          "signal": "warn"
+        },
+        {
+          "label": "p95 and p99 per operation, with alert thresholds",
+          "score": 3,
+          "signal": "good"
+        }
+      ],
+      "gap": {
+        "title": "Tail latency is unmeasured",
+        "risk": "medium",
+        "consequence": "The average looks acceptable while a meaningful slice of users waits 40 seconds and abandons. Retries and multi-step chains live entirely in that tail.",
+        "fix": "Instrument per-step timing, alert on p95 by operation, and set an explicit latency budget that streaming or partial results must satisfy.",
+        "effort": "2 days",
+        "businessRisk": "Some users wait long enough to give up, and it is invisible in the averages you currently see.",
+        "effortDays": {
+          "min": 2,
+          "max": 2
+        }
+      }
+    },
+    {
+      "id": "tracing",
+      "pillar": "observability",
+      "weight": 3,
+      "question": "Can you replay a single agent run end to end — every step, prompt, and tool call?",
+      "help": "One trace ID that shows the whole decision path, not scattered log lines.",
+      "options": [
+        {
+          "label": "Application logs only",
+          "score": 0,
+          "signal": "risk"
+        },
+        {
+          "label": "We log prompts and responses, unlinked",
+          "score": 1,
+          "signal": "risk"
+        },
+        {
+          "label": "Traces per run, retained briefly",
+          "score": 2,
+          "signal": "warn"
+        },
+        {
+          "label": "Full step-level traces, searchable, retained long enough to investigate",
+          "score": 3,
+          "signal": "good"
+        }
+      ],
+      "gap": {
+        "title": "No per-run trace",
+        "risk": "critical",
+        "consequence": "Every investigation starts from zero. Mean time to diagnosis is measured in days, and some failures are simply never explained.",
+        "fix": "Adopt step-level tracing (OpenTelemetry or a purpose-built LLM observability tool), propagate one trace ID across the whole run, and make traces searchable by user and outcome.",
+        "effort": "3–5 days",
+        "businessRisk": "When something goes wrong nobody can explain why. Investigations take days or never conclude.",
+        "effortDays": {
+          "min": 3,
+          "max": 5
+        }
+      }
+    },
+    {
+      "id": "failure-taxonomy",
+      "pillar": "observability",
+      "weight": 2,
+      "question": "Does your team have shared, named categories for how the agent fails?",
+      "help": "\"Tool argument hallucination\" and \"retrieval miss\" are categories. \"It was wrong\" is not.",
+      "options": [
+        {
+          "label": "Failures are described case by case",
+          "score": 0,
+          "signal": "risk"
+        },
+        {
+          "label": "Informal shared intuition, nothing written down",
+          "score": 1,
+          "signal": "warn"
+        },
+        {
+          "label": "A documented taxonomy",
+          "score": 2,
+          "signal": "good"
+        },
+        {
+          "label": "A taxonomy that every failure is classified against, with trend tracking",
+          "score": 3,
+          "signal": "good"
+        }
+      ],
+      "gap": {
+        "title": "Failures cannot be counted, so they cannot be prioritised",
+        "risk": "high",
+        "consequence": "Without categories there are no rates. The team fixes whatever was complained about loudest rather than what happens most.",
+        "fix": "Name your failure modes, tag every incident against them, and review the distribution monthly. Fix by frequency times severity.",
+        "effort": "1–2 days to define, ongoing to maintain",
+        "businessRisk": "Failures cannot be counted, so the team fixes what was complained about loudest rather than what happens most.",
+        "effortDays": {
+          "min": 1,
+          "max": 2
+        }
+      }
+    },
+    {
+      "id": "output-guardrails",
+      "pillar": "observability",
+      "weight": 2,
+      "question": "Are outputs checked for policy, PII, and grounding before reaching the user?",
+      "help": "Especially relevant if the agent touches customer, financial, or health data.",
+      "options": [
+        {
+          "label": "No checks",
+          "score": 0,
+          "signal": "risk"
+        },
+        {
+          "label": "Prompt instructions telling the model to behave",
+          "score": 1,
+          "signal": "risk"
+        },
+        {
+          "label": "Programmatic checks on some paths",
+          "score": 2,
+          "signal": "warn"
+        },
+        {
+          "label": "Enforced checks on every path, with blocked outputs logged",
+          "score": 3,
+          "signal": "good"
+        }
+      ],
+      "gap": {
+        "title": "Guardrails rely on the model following instructions",
+        "risk": "high",
+        "consequence": "Prompt-based rules are advisory, not enforcement. One jailbreak or one unusual input and unreviewed content — or someone else's data — reaches a user.",
+        "fix": "Enforce checks in code outside the model: PII detection, policy classifiers, and grounding verification against retrieved sources. Log every block as a signal.",
+        "effort": "3–5 days depending on regulatory surface",
+        "businessRisk": "Unreviewed content, or another customer’s data, can reach a user.",
+        "effortDays": {
+          "min": 3,
+          "max": 5
+        }
+      }
+    },
+    {
+      "id": "ownership",
+      "pillar": "observability",
+      "weight": 2,
+      "question": "Is there a named person accountable for whether the agent works?",
+      "help": "Not the whole team, and not the person who happens to be on call.",
+      "options": [
+        {
+          "label": "Nobody in particular",
+          "score": 0,
+          "signal": "risk"
+        },
+        {
+          "label": "Shared across the team informally",
+          "score": 1,
+          "signal": "warn"
+        },
+        {
+          "label": "One owner, among many other duties",
+          "score": 2,
+          "signal": "warn"
+        },
+        {
+          "label": "A named owner with time allocated and metrics they report on",
+          "score": 3,
+          "signal": "good"
+        }
+      ],
+      "gap": {
+        "title": "Agent quality is nobody's job",
+        "risk": "high",
+        "consequence": "Reliability work loses to feature work every sprint, because features have an owner arguing for them and reliability does not.",
+        "fix": "Name an owner, give them explicit time, and have them report a small number of reliability metrics on the same cadence as product metrics.",
+        "effort": "An organisational decision, not an engineering one",
+        "businessRisk": "Nobody is accountable for whether this works, so reliability loses to feature work every sprint.",
+        "effortDays": {
+          "min": 0,
+          "max": 0
+        }
+      }
+    }
+  ],
+  "bands": [
+    {
+      "min": 0,
+      "max": 30,
+      "label": "Prototype",
+      "verdict": "This is a demo with users attached. That is not a criticism — it is a very common and very risky place to be.",
+      "recommendation": "Do not add features yet. The four critical gaps below are the ones that cause incidents, and each is a few days of work.",
+      "signal": "risk"
+    },
+    {
+      "min": 31,
+      "max": 55,
+      "label": "Fragile",
+      "verdict": "Some instincts are right, but the safety net has holes in exactly the places that produce 2am pages.",
+      "recommendation": "Close the critical gaps first, then build the eval suite that stops you regressing what you just fixed.",
+      "signal": "risk"
+    },
+    {
+      "min": 56,
+      "max": 75,
+      "label": "Hardening",
+      "verdict": "You are meaningfully ahead of most teams shipping agents today. What is missing is consistency rather than awareness.",
+      "recommendation": "Make the practices you already have partial coverage on universal, and start tracking failure rates by category so you can prioritise by data.",
+      "signal": "warn"
+    },
+    {
+      "min": 76,
+      "max": 90,
+      "label": "Production-grade",
+      "verdict": "This is a system you can defensibly bill customers for.",
+      "recommendation": "The remaining wins are efficiency rather than safety: model routing, caching, and tightening latency budgets.",
+      "signal": "good"
+    },
+    {
+      "min": 91,
+      "max": 100,
+      "label": "Exemplary",
+      "verdict": "Genuinely rare. You are running agents with more discipline than most teams apply to conventional services.",
+      "recommendation": "You probably do not need me. If you would like a second pair of eyes on the edges, I am happy to talk — but I would say so if I could not add value.",
+      "signal": "good"
+    }
+  ],
+  "decisions": [
+    {
+      "maxCritical": 0,
+      "minScore": 76,
+      "line": "No action needed beyond efficiency work. Recheck in six months or after a significant change."
+    },
+    {
+      "maxCritical": 0,
+      "minScore": 0,
+      "line": "No emergency. Schedule the highest-risk gaps within the quarter — none of them are large."
+    },
+    {
+      "maxCritical": 2,
+      "minScore": 0,
+      "line": "Schedule the critical gaps into the next sprint. Everything else can wait."
+    },
+    {
+      "maxCritical": 99,
+      "minScore": 0,
+      "line": "Pause new agent features until the critical gaps are closed. This is days of engineering work, not quarters."
+    }
+  ]
+}

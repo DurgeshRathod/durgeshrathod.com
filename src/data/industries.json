@@ -1,0 +1,561 @@
+{
+  "meta": {
+    "version": "1.0",
+    "updated": "2026-08-02",
+    "title": "Industries",
+    "description": "Four domains where I have shipped production systems, and the constraint that makes AI agents hard in each one.",
+    "premise": "Agent reliability is mostly domain-independent — until it isn't. What changes by industry is which failure is unacceptable, what a security reviewer will ask, and which regulation now applies. These four are the domains I have actually shipped in, so each page carries the specific constraint rather than generic advice with the industry noun swapped in.",
+    "legalDisclaimer": "Regulatory notes on these pages are engineering guidance, not legal advice. They describe what the rules imply for how you build and log a system. Get a qualified opinion for your jurisdiction and use case before relying on any of it."
+  },
+  "industries": [
+    {
+      "slug": "hr-technology",
+      "name": "HR technology",
+      "order": 1,
+      "h1": "AI agents on HR data, where the data is the whole problem",
+      "tagline": "The most sensitive non-medical data a company holds, in a multi-tenant product, read by managers about their own reports.",
+      "description": "Building AI agents for HR tech: which employee data classes can safely enter a prompt, what HR security reviews actually ask, and the EU AI Act obligations that now apply to worker-management AI. From building multi-tenant HR analytics for 2,000 concurrent users.",
+      "keywords": [
+        "AI in HR technology",
+        "HR analytics AI",
+        "employee data LLM",
+        "HR AI compliance",
+        "multi-tenant HR SaaS AI"
+      ],
+      "whoIHelp": [
+        "HR tech and HCM platforms adding conversational analytics or copilots",
+        "People-analytics teams inside large employers",
+        "Founders selling HR AI into enterprises and hitting security review"
+      ],
+      "systems": [
+        "Conversational analytics over workforce data",
+        "Attrition and time-to-fill forecasting",
+        "Policy and handbook assistants",
+        "Manager copilots for reviews and one-to-ones",
+        "Interview and screening automation"
+      ],
+      "proof": {
+        "stat": "2,000",
+        "label": "concurrent users on multi-tenant HR analytics",
+        "detail": "I built a multi-tenant HR analytics platform and conversational assistant on AWS Bedrock and LangChain: text-to-SQL over workforce data with strict per-tenant isolation, predictive models for attrition and time-to-fill at roughly 75% accuracy, and reporting turnaround cut from two to three days to under 30 seconds.",
+        "caseStudy": "hr-analytics-agent"
+      },
+      "constraint": [
+        "HR data is the most sensitive category most companies hold outside actual medical records. Compensation, performance ratings, attrition risk scores, disciplinary history, leave reasons. A leak is not an embarrassment, it is a lawsuit and a works-council incident.",
+        "It is also unusually adversarial by structure. The data subjects are the employees, the users are often their managers, and the buyer is HR. A manager asking a reasonable-sounding question can be asking for something they are not entitled to see — and the agent has no idea, because org-chart entitlement is not visible in the text of the question.",
+        "Then multi-tenancy compounds it. Most HR AI ships inside a SaaS platform, so a retrieval bug is not one customer seeing the wrong row, it is one company seeing another company's salary data. That is the failure that ends the product.",
+        "The practical consequence: in HR tech, more of the engineering budget goes to the boundary than to the model. That ratio surprises teams who arrived expecting the hard part to be prompt quality."
+      ],
+      "asset": {
+        "kind": "table",
+        "title": "Which HR data classes can enter a prompt",
+        "intro": "The question teams should ask before the first prototype and usually ask after the first security review. My default classification — tighten it for your jurisdiction, never loosen it without a written reason.",
+        "columns": ["Data class", "In a prompt?", "How to handle it"],
+        "rows": [
+          [
+            "Job title, department, tenure, location",
+            "Yes",
+            "Low sensitivity and usually necessary context. Still scope it to the requester's entitlement."
+          ],
+          [
+            "Aggregated metrics (headcount, average tenure)",
+            "Yes",
+            "Enforce a minimum group size — typically 5 — so aggregates cannot re-identify an individual."
+          ],
+          [
+            "Individual compensation",
+            "Only with entitlement checked in code",
+            "Never rely on the prompt to decide who may see pay. Resolve entitlement server-side from the org graph, before retrieval."
+          ],
+          [
+            "Performance ratings and review text",
+            "Rarely, and never in free text",
+            "Free-text reviews re-identify people even when names are stripped — writing style and incident detail are enough. Prefer structured ratings with entitlement checks."
+          ],
+          [
+            "Attrition or flight-risk scores",
+            "Generally no",
+            "A prediction about a named employee reaching the wrong manager causes real harm. Keep these aggregate, or gate behind an explicit policy decision with logging."
+          ],
+          [
+            "Health, leave reason, accommodations",
+            "No",
+            "Special category data under GDPR Article 9. Exclude from retrieval indexes entirely rather than filtering at query time."
+          ],
+          [
+            "Protected characteristics",
+            "No — and not as model features",
+            "Also exclude proxies: postcode, school, photo, name-derived inference. Absence from the prompt is not enough if a proxy is present."
+          ],
+          [
+            "Disciplinary and grievance records",
+            "No",
+            "Separate system, separate access path, no agent access. There is no version of this that is worth the risk."
+          ]
+        ],
+        "note": "The recurring mistake is filtering sensitive classes at query time while indexing everything. If a class must never be returned, it must never be embedded — a filter is one forgotten call site away from a leak."
+      },
+      "secondAsset": {
+        "kind": "table",
+        "title": "What HR security reviews actually ask",
+        "intro": "If you sell HR AI into enterprises, these are the questions that decide the deal. Having a real answer to each is worth more than any feature on your roadmap.",
+        "columns": ["The question", "What an acceptable answer looks like"],
+        "rows": [
+          [
+            "How do you guarantee tenant isolation?",
+            "Session-derived tenant identity, server-side filtering, query rewriting, per-tenant credentials — plus adversarial tests that fail. Not \"the prompt instructs the model.\""
+          ],
+          [
+            "Is our data used to train models?",
+            "A clear no, with the provider's data-processing terms and zero-retention configuration documented. Know your provider's default, because some retain by default."
+          ],
+          [
+            "Where is data processed?",
+            "Named regions. Several providers charge a premium for pinned regional inference — budget for it rather than discovering it at contract stage."
+          ],
+          [
+            "Can an employee's data be deleted on request?",
+            "Deletion has to reach embeddings, caches, conversation history and traces — not just the primary database. Most teams have not thought about the vector index."
+          ],
+          [
+            "Who can see what, and how is it enforced?",
+            "Entitlement resolved from the org graph before retrieval, with the decision logged per request."
+          ],
+          [
+            "Show us an audit trail for a decision.",
+            "A trace with prompt version, model version, retrieved records, entitlement decision and output — reconstructable months later."
+          ],
+          [
+            "Is this a high-risk system under the EU AI Act?",
+            "Worker management sits in Annex III. Know whether you are provider or deployer, and have the logging and human-oversight story ready."
+          ]
+        ],
+        "note": "Every one of these is an engineering question wearing a compliance costume. Answer them in the architecture and the security review becomes a formality."
+      },
+      "regulatory": [
+        {
+          "name": "EU AI Act — Annex III, point 4 (employment and worker management)",
+          "effective": "High-risk obligations apply from 2 August 2026",
+          "whatItMeans": "AI used for recruitment, evaluation, promotion, termination, task allocation or worker monitoring is classified high-risk. Providers carry design, documentation and bias-testing duties; deployers owe human oversight, input-data quality, logging and worker information.",
+          "engineeringImplication": "Logging and human oversight stop being optional features. You need per-decision traces you can produce on request, a documented human review path for adverse decisions, and evidence of data quality. A system with no tracing cannot demonstrate compliance even if it behaves perfectly."
+        },
+        {
+          "name": "GDPR Article 22 — automated decision-making",
+          "effective": "In force",
+          "whatItMeans": "Decisions made solely by automated means with legal or significant effects require specific safeguards, including meaningful human involvement and the ability to contest.",
+          "engineeringImplication": "\"A human clicked approve\" is not meaningful involvement if the human saw only a score. Surface the reasoning and the underlying records, and log what the reviewer actually saw."
+        },
+        {
+          "name": "Works council consultation (Germany, Netherlands, France and others)",
+          "effective": "In force, varies by country",
+          "whatItMeans": "Introducing systems that monitor or evaluate employees typically requires consultation, and can be blocked.",
+          "engineeringImplication": "Build the explanation you will need for that conversation while building the system, not afterwards. Feature flags per country are usually cheaper than a rollback."
+        }
+      ],
+      "dominantFailures": ["retrieval-miss", "tool-arg-hallucination", "works-in-dev"],
+      "relevantSolutions": [
+        "multi-tenant-ai-isolation",
+        "text-to-sql-reliability",
+        "agent-eval-suites"
+      ],
+      "faq": [
+        {
+          "q": "Can we put employee data into an LLM prompt at all?",
+          "a": "Yes, for the lower-sensitivity classes, with entitlement resolved in code before retrieval rather than described in the prompt. Job title, department, tenure and properly-aggregated metrics are routine.\n\nWhat should not go in: health and leave data, protected characteristics and their proxies, disciplinary records, and individual attrition predictions. The table above is my default classification."
+        },
+        {
+          "q": "Is our HR AI high-risk under the EU AI Act?",
+          "a": "If it is used for recruitment, evaluation, promotion, termination, task allocation or worker monitoring, it falls under Annex III point 4 and high-risk obligations apply from 2 August 2026. Penalties under Article 99 reach €15 million or 3% of global turnover.\n\nNote one nuance: the European Commission's Digital Omnibus package proposed in November 2025 may push this timeline back, but it is a proposal rather than enacted law — planning on the delay is a bet. This is engineering guidance, not legal advice."
+        },
+        {
+          "q": "How do we handle a deletion request for data in a vector index?",
+          "a": "Plan for it before launch, because retrofitting is painful. Deletion has to reach the primary store, the embedding index, prompt caches, conversation history, eval datasets and traces.\n\nThe practical approach is per-employee identifiers on every derived record so deletion is a query rather than a search, plus periodic index rebuilds as a backstop. Teams that skip this discover it during an enterprise security review."
+        },
+        {
+          "q": "Why is multi-tenancy harder for HR AI than for a normal SaaS app?",
+          "a": "Because a language model sits between the request and the data, and it can be talked into things a SQL query cannot. Retrieval filters and tenant predicates are the correct defence, but they now have to hold against ambiguous natural-language input rather than a typed API call.\n\nI shipped a multi-tenant HR analytics agent for 2,000 concurrent users, and the query gate that enforced isolation outside the model was two weeks of work and the reason the project shipped at all."
+        }
+      ]
+    },
+    {
+      "slug": "recruitment-and-ats",
+      "name": "Recruitment & ATS",
+      "order": 2,
+      "h1": "Candidate-facing AI has to be defensible, not just accurate",
+      "tagline": "If the same candidate scores differently on a re-run, you cannot defend the decision — and from August 2026 you may have to.",
+      "description": "Building AI for recruitment platforms and ATS integrations: why non-determinism is a legal problem rather than an engineering annoyance, the explainability controls candidate-facing AI needs, and what the EU AI Act and NYC Local Law 144 imply for how you log decisions.",
+      "keywords": [
+        "AI recruitment platform",
+        "candidate matching AI",
+        "AI hiring bias audit",
+        "ATS AI integration",
+        "NYC Local Law 144",
+        "EU AI Act recruitment"
+      ],
+      "whoIHelp": [
+        "Recruitment platforms and job marketplaces with AI matching",
+        "ATS vendors adding screening, ranking or sourcing agents",
+        "Talent-acquisition teams running AI screening in-house"
+      ],
+      "systems": [
+        "Candidate–job matching and ranking engines",
+        "Resume parsing and enrichment pipelines",
+        "Automated screening and shortlisting",
+        "Sourcing and outreach agents",
+        "Interview scheduling and scoring assistants"
+      ],
+      "proof": {
+        "stat": "B2B + B2C",
+        "label": "recruitment platform with AI matching in production",
+        "detail": "I built an enterprise recruitment platform with an AI-powered candidate and job matching engine using NLP, vector embeddings and similarity scoring on AWS Bedrock, alongside Elasticsearch for high-performance search, RChilli resume parsing, Twilio candidate communication, and synchronisation with third-party ATS platforms.",
+        "caseStudy": null
+      },
+      "constraint": [
+        "In most domains a non-deterministic answer is an annoyance you paper over with caching. In recruitment it is a defect you cannot defend. If a candidate asks why they were rejected, or a regulator asks you to reproduce a ranking, \"the model gives slightly different scores each run\" is not an acceptable answer.",
+        "That single property reshapes the architecture. Ranking has to be reproducible from a recorded input, a pinned model version and a recorded feature set. Which means version pinning, decision logging and structured output stop being nice engineering hygiene and become the product's legal foundation.",
+        "The second constraint is that ranking is the product. In an HR analytics tool a wrong answer is a bad report. In recruitment a wrong ranking changes someone's employment outcome, and \"the model decided\" is not a defence anywhere.",
+        "Third: ATS integration means your failures leave your system. A truncated candidate list or a hallucinated status write-back lands in someone else's system of record, where you cannot see it and your customer's recruiters treat it as fact."
+      ],
+      "asset": {
+        "kind": "checklist",
+        "title": "Controls candidate-facing AI needs",
+        "intro": "Engineering controls, not policy statements. Each one is something you can point at in code or a log — which is what makes a decision defensible rather than merely well-intentioned.",
+        "items": [
+          "Ranking is reproducible: the same candidate, same job, same model version and same feature set produces the same score, and you can prove it by re-running",
+          "Model version is pinned per decision and recorded with it — never a floating alias that changes underneath a completed hiring round",
+          "Protected characteristics are not features, and neither are their proxies: postcode, school and university, name-derived ethnicity or gender inference, photo, age-revealing dates, career-gap length",
+          "Free-text resume content is checked for proxy leakage — a model reading \"maternity leave 2023\" or a fraternity name has inferred a protected characteristic whether or not you gave it a field",
+          "Every ranking decision logs its inputs, the retrieved evidence, the score, and the reasoning in a form a human can read months later",
+          "Adverse decisions have a defined human review path, and the log records what the reviewer actually saw — not merely that someone approved",
+          "Output is structured, never prose: scores, reasons and flags as fields, so decisions are comparable across candidates and time",
+          "Score distributions are monitored for drift across demographic groups where you lawfully hold that data for audit purposes, separated from the data used to make decisions",
+          "Truncation is treated as an error: a shortlist cut off by a token limit is a silently wrong hiring decision",
+          "Write-backs to an ATS are validated and idempotent, because a hallucinated status is now the customer's system of record",
+          "Candidates receive the notice your jurisdiction requires, and the notice text is versioned like code",
+          "Your eval suite contains candidates who must rank consistently, and adversarial resumes with prompt-injection attempts in the text"
+        ],
+        "note": "Item one is the one teams skip and the one that matters most. Run the same 50 candidates through your ranker twice and diff the order. If it changes, you have a defensibility problem today, regardless of what any regulator does next."
+      },
+      "secondAsset": {
+        "kind": "table",
+        "title": "Where wrong hiring recommendations come from",
+        "intro": "Ranked by how often I find each one. Note how few are about the model.",
+        "columns": ["Cause", "What it looks like", "The fix"],
+        "rows": [
+          [
+            "Parsing loss",
+            "A skill exists in the resume and never reaches the model — tables, columns, headers and PDFs defeat parsers routinely",
+            "Measure parse recall against a labelled set before touching the ranker"
+          ],
+          [
+            "Proxy leakage in free text",
+            "Model infers a protected characteristic from context you never intended as a feature",
+            "Redact or neutralise before embedding; test with matched resumes differing only in a proxy"
+          ],
+          [
+            "Semantic similarity mistaken for fit",
+            "A resume that talks like the job description outranks one that can do the job",
+            "Score against explicit requirements, not description similarity; keep requirements structured"
+          ],
+          [
+            "Non-determinism across runs",
+            "Same candidate, different rank, no explanation available",
+            "Pin versions, structure output, assert consistency in evals"
+          ],
+          [
+            "Silent truncation of the candidate list",
+            "Shortlist cut at a token limit; the omitted candidates are invisible",
+            "Treat a length-based stop reason as an error, and paginate rather than raising the cap"
+          ],
+          [
+            "Stale enrichment data",
+            "Ranking on a job history that is two years out of date",
+            "Track freshness per record and exclude or flag stale enrichment"
+          ]
+        ],
+        "note": "Parsing loss is first for a reason. Teams tune ranking prompts for weeks when the relevant skill never made it into the context — measure the pipeline before the model."
+      },
+      "regulatory": [
+        {
+          "name": "EU AI Act — Annex III, point 4 (recruitment and candidate screening)",
+          "effective": "High-risk obligations apply from 2 August 2026",
+          "whatItMeans": "AI that screens CVs, ranks applicants, filters candidate pools, shortlists for human review, or determines whether a candidate advances is explicitly high-risk. Providers carry design, documentation and bias-testing duties; deployers owe human oversight, input-data quality, logging and candidate information. Penalties under Article 99 reach €15 million or 3% of global turnover.",
+          "engineeringImplication": "Per-decision logging, reproducibility and a documented human-oversight path become build requirements. A ranker that cannot reproduce a past decision cannot demonstrate compliance. Note that the Commission's November 2025 Digital Omnibus proposal may move this date, but it is not enacted law — building for the current date is the conservative call."
+        },
+        {
+          "name": "NYC Local Law 144 — automated employment decision tools",
+          "effective": "In force since July 2023",
+          "whatItMeans": "Automated employment decision tools used for hiring or promotion of NYC candidates require an annual independent bias audit, publication of audit results, and advance notice to candidates.",
+          "engineeringImplication": "You need a data pipeline that can produce audit-ready selection-rate data by category, kept separate from the data used to make decisions. Retrofitting this is far harder than logging it from the start."
+        }
+      ],
+      "dominantFailures": ["nondeterminism", "silent-truncation", "retrieval-miss"],
+      "relevantSolutions": ["agent-eval-suites", "llm-observability", "multi-tenant-ai-isolation"],
+      "faq": [
+        {
+          "q": "Is our AI recruitment tool high-risk under the EU AI Act?",
+          "a": "If it screens CVs, ranks or filters applicants, shortlists candidates, or decides who advances, then yes — that is explicitly Annex III point 4, and high-risk obligations apply from 2 August 2026.\n\nWhether you are a provider or a deployer changes which duties you carry, and both sets have engineering consequences: logging, human oversight, data quality and reproducibility. This is engineering guidance, not legal advice."
+        },
+        {
+          "q": "How do we make AI candidate ranking explainable?",
+          "a": "Score against explicit structured requirements rather than similarity to the job description, return reasons as fields rather than prose, and record the inputs, model version, retrieved evidence and score for every decision.\n\nExplainability is mostly an architecture property, not a post-hoc feature. If ranking is a similarity number out of an embedding comparison, no amount of generated explanation makes it defensible — the explanation is a story about a number, not the reason for it."
+        },
+        {
+          "q": "Is it enough to remove protected characteristics from candidate data?",
+          "a": "No, and this is the most common misconception. Models infer protected characteristics from proxies: postcode, school, university, name, photo, career-gap length, and language in free text like \"maternity leave 2023\".\n\nRemoving the explicit fields while embedding the full resume text leaves every proxy in place. Test it directly: matched resumes differing only in a proxy should score the same. Most systems have never been tested that way."
+        },
+        {
+          "q": "Why does non-determinism matter more in recruitment than elsewhere?",
+          "a": "Because you may have to reproduce a decision. A candidate appeal, a customer dispute or a regulator's request all assume the ranking can be re-derived — and \"the score varies by a few points each run\" ends that conversation badly.\n\nIt is also a straightforward test you can run today: put 50 candidates through your ranker twice and diff the order. If it changes, fix that before adding features."
+        }
+      ]
+    },
+    {
+      "slug": "telecom-and-data-platforms",
+      "name": "Telecom & data platforms",
+      "order": 3,
+      "h1": "Keep the language model out of your hot path",
+      "tagline": "At 520 million records every 15 minutes, per-record inference is off by six orders of magnitude. There are still good places for an agent — just not there.",
+      "description": "Where LLMs belong in a high-throughput data platform and where they are a category error, with the latency arithmetic. Plus the bounded-resource discipline from running 520M telecom parameters per 15-minute cycle, applied to agent systems.",
+      "keywords": [
+        "LLM high throughput data pipeline",
+        "AI telecom operations",
+        "LLM streaming data",
+        "AIOps agents",
+        "Kafka LLM architecture"
+      ],
+      "whoIHelp": [
+        "Telecom and network operations teams with CM/PM data platforms",
+        "Data platform teams being asked to add AI features",
+        "Observability and AIOps products adding agent capabilities"
+      ],
+      "systems": [
+        "Anomaly explanation over network performance metrics",
+        "Pipeline and connector configuration generation",
+        "Alert triage, deduplication and enrichment",
+        "Runbook automation with human gates",
+        "Natural-language querying over analytical stores"
+      ],
+      "proof": {
+        "stat": "520M",
+        "label": "parameters processed every 15 minutes",
+        "detail": "I architected a configuration-driven telecom data platform processing 200 million configuration and 320 million performance parameters per 15-minute ingestion cycle on Golang, Kafka, Kubernetes, PostgreSQL and Oracle, where new data sources could be onboarded through configuration rather than a deployment.",
+        "caseStudy": "telecom-throughput"
+      },
+      "constraint": [
+        "This is the one domain where my main advice is usually to use less AI than the roadmap assumes, and the arithmetic makes the case better than any argument. At 520 million records per 15-minute cycle you have roughly 1.7 microseconds of budget per record. A model call takes on the order of a second. That is about six orders of magnitude of gap, and no amount of batching or caching closes it.",
+          "So per-record inference in the hot path is not expensive, it is arithmetically impossible. The useful question is not whether to add AI, but which surfaces genuinely tolerate a one-second, occasionally-wrong, per-call-billed operation.",
+        "The second constraint is a cultural advantage rather than a problem. Data platform teams already think in bounded queues, backpressure, consumer lag and p95. Those are exactly the concepts agent systems are currently missing — so a platform team adopting agents starts ahead, provided nobody tells them to abandon that discipline because \"AI is different\".",
+        "It is not different. An agent run with no step ceiling is an unbounded queue. Retrying a failing tool without backoff is redelivery amplification. No per-run token budget is a pipeline accepting work it cannot afford to finish. I learned all three from a delayed telecom batch that turned a 20% input spike into an outage, and they transfer directly."
+      ],
+      "asset": {
+        "kind": "table",
+        "title": "Where an LLM belongs in a high-throughput pipeline",
+        "intro": "The distinction that matters is per-record versus per-aggregate, and synchronous versus offline. Everything workable sits on the aggregate or offline side.",
+        "columns": ["Surface", "Verdict", "Why"],
+        "rows": [
+          [
+            "Per-record inference in the ingestion path",
+            "Never",
+            "1.7 µs of budget per record against ~1 s per model call. Six orders of magnitude — not an optimisation problem."
+          ],
+          [
+            "Per-record classification at moderate volume",
+            "Only with a small local model",
+            "If it must be per-record, it is a fine-tuned classifier or a rules engine, not a hosted LLM call."
+          ],
+          [
+            "Anomaly explanation on detected events",
+            "Yes — async",
+            "Detection stays statistical and fast. The model explains the handful of anomalies that surfaced, off the hot path."
+          ],
+          [
+            "Alert triage, dedup and enrichment",
+            "Yes",
+            "Operates on alerts, not raw records. Volume drops by orders of magnitude and latency tolerance is in seconds."
+          ],
+          [
+            "Pipeline and connector config generation",
+            "Yes — offline, human-reviewed",
+            "This is the highest-value use I have found: generate the configuration, have an engineer approve it, let the deterministic framework execute it."
+          ],
+          [
+            "Natural-language querying over the warehouse",
+            "Yes — with a query gate",
+            "Interactive, low volume, high value. Needs the same AST validation and bounds as any text-to-SQL system."
+          ],
+          [
+            "Runbook automation",
+            "Yes — human-gated on anything destructive",
+            "Diagnosis and proposed remediation from the model; execution behind an approval step with a dry-run."
+          ],
+          [
+            "Report and summary generation",
+            "Yes — batch",
+            "Not latency-sensitive, so it also qualifies for the 50% batch discount."
+          ]
+        ],
+        "note": "The pattern across every \"yes\" row: the model operates on aggregates or events, off the critical path, and its output is either reviewed by a human or validated by deterministic code before it does anything."
+      },
+      "secondAsset": {
+        "kind": "checklist",
+        "title": "Bounded-resource discipline, translated to agents",
+        "intro": "The list a data platform team already knows, mapped onto agent systems. If you run pipelines, you have applied all of these — the point is that almost no agent codebase has.",
+        "items": [
+          "Every queue and buffer is explicitly bounded — an agent run with no maximum step count is an unbounded buffer, which is a delayed crash",
+          "Load is shed or rejected rather than accepted when it cannot be completed — refusing work is a valid, observable behaviour; accepting it and dying is not",
+          "Retries use backoff and are idempotent, or redelivery amplifies the incident that caused it",
+          "Alerting is on trends, not thresholds — cycle time creeping from 9 to 12 minutes is the signal; hitting 15 is the incident",
+          "Cost has a per-unit ceiling, not just a monthly budget — a per-run token cap is the agent equivalent of a per-batch memory limit",
+          "Consumer lag has an agent analogue: queue depth of pending runs, and it needs the same dashboard",
+          "Reprocessing a single entity in isolation is possible — the agent equivalent is replaying one run from its trace",
+          "Headroom is maintained deliberately so a spike is absorbed rather than amplified"
+        ],
+        "note": "This transfer is the most useful thing I bring to a platform team adopting agents: not new AI concepts, but permission to apply the operational discipline they already have."
+      },
+      "dominantFailures": ["latency-tail", "runaway-loop", "cost-spike"],
+      "relevantSolutions": ["llm-cost-reduction", "llm-observability", "text-to-sql-reliability"],
+      "faq": [
+        {
+          "q": "Can we run an LLM on streaming data in real time?",
+          "a": "Not per record at high volume. At 520 million records per 15 minutes the budget is about 1.7 microseconds per record, against roughly a second for a model call — a gap of six orders of magnitude that batching does not close.\n\nWhat works is running the model on aggregates or detected events instead: statistical detection stays in the hot path, and the model explains the small number of things that surfaced."
+        },
+        {
+          "q": "What is the highest-value use of AI in a data platform?",
+          "a": "Configuration generation with human review, in my experience. Onboarding a new data source means writing connector, transformation and destination config — tedious, pattern-heavy work that a model does well and an engineer can verify in minutes.\n\nThe execution stays deterministic. You get the speed-up on the authoring step without putting a probabilistic system in the processing path."
+        },
+        {
+          "q": "Does agent tracing add too much overhead for high-volume systems?",
+          "a": "Not where agents belong. Agent surfaces in a data platform run on aggregates and events — thousands of operations, not hundreds of millions — so per-span overhead of a few milliseconds is irrelevant.\n\nThe systems where tracing overhead genuinely matters are the ones that should not have an LLM in them anyway."
+        },
+        {
+          "q": "Our team runs pipelines, not AI. What actually transfers?",
+          "a": "Nearly all of your operational instincts, and that is a bigger advantage than it sounds. Bounded queues, backpressure, load shedding, idempotent retries, alerting on trends, maintaining headroom — every one has a direct agent equivalent, and agent codebases routinely lack all of them.\n\nThe gap is usually not AI knowledge. It is that nobody told you the discipline you already have is the missing piece."
+        }
+      ]
+    },
+    {
+      "slug": "legal-and-contracts",
+      "name": "Legal & contracts",
+      "order": 4,
+      "h1": "In contract AI, an unsupported sentence is a liability",
+      "tagline": "Grounding to a specific clause version is not a feature. It is the product.",
+      "description": "Building AI for contract lifecycle management: clause-level grounding requirements, why defined terms and cross-references break naive retrieval, and the audit trail legal teams need. From building an enterprise CLM platform.",
+      "keywords": [
+        "contract AI",
+        "CLM AI",
+        "contract review LLM",
+        "clause extraction",
+        "legal document RAG"
+      ],
+      "whoIHelp": [
+        "CLM and legal-tech platforms adding review or drafting AI",
+        "In-house legal operations teams automating contract review",
+        "Procurement teams triaging supplier agreements at volume"
+      ],
+      "systems": [
+        "Clause extraction and classification",
+        "Contract review and risk flagging",
+        "Obligation and renewal-date extraction",
+        "Template and clause-library assistants",
+        "Redline generation and comparison"
+      ],
+      "proof": {
+        "stat": "Enterprise CLM",
+        "label": "contract lifecycle platform in production",
+        "detail": "I designed and built an enterprise Contract Lifecycle Management platform covering authoring, review, approvals, amendments, clause libraries and template-based generation, on Angular, Node.js, PostgreSQL and CKEditor — including the approval and amendment workflows legal and business teams ran on daily.",
+        "caseStudy": null
+      },
+      "constraint": [
+        "Legal users do not want a summary. They want to know which clause says so, in which version, and they will click through to check. That inverts the usual product instinct: fluent prose is nearly worthless here, and a terse answer with an exact citation is the whole value.",
+        "Which makes grounding the product rather than a safety feature. An answer that is correct but uncited is unusable, because the reviewer has to go and find the clause anyway — at which point you have added a step rather than removed one.",
+        "The second constraint is that contract language is adversarial to naive retrieval in ways ordinary documents are not. Defined terms carry meaning from a definitions section fifty pages away. Cross-references chain: Section 7.2(b) modifies 7.1, which an amendment supersedes. Precedence clauses decide which document wins. Chunk a contract on token counts and you reliably destroy all three.",
+        "Third, the audit trail is a legal artefact. If a model-assisted review missed an indemnity cap, the question becomes what the system was shown and what a human approved. That has to be reconstructable years later, long after the model version you used has been retired."
+      ],
+      "asset": {
+        "kind": "checklist",
+        "title": "Clause-grounding requirements",
+        "intro": "What has to be true before a legal team will rely on model output. Each item is checkable in code, which is what distinguishes a system a general counsel will sign off from a demo.",
+        "items": [
+          "Every assertion cites a specific clause identifier and the document version it came from — not a page number, not a similarity score",
+          "Citations resolve: clicking one lands on the exact clause text the model was shown, retrieved from storage rather than regenerated",
+          "Defined terms are resolved before or during retrieval, so a clause using \"Confidential Information\" carries its definition into context",
+          "Cross-references are followed to a bounded depth, and the chain is recorded — Section 7.2(b) referencing 7.1 must bring 7.1 along",
+          "Amendment and precedence chains are respected: the system knows which version is operative and which document controls on conflict",
+          "Synthesis across documents is either forbidden or explicitly attributed per source — an unattributed merged claim is the most dangerous output shape",
+          "\"Not found in this contract\" is a first-class answer, and the system prefers it to inference",
+          "The exact retrieved context is stored immutably with the output, so a review can be reconstructed years later",
+          "Model version and prompt version are recorded per document produced, and pinned — never a floating alias",
+          "Redlines and diffs are generated deterministically by code, with the model proposing changes rather than rendering the comparison",
+          "Human sign-off is recorded with what the reviewer was shown, not merely that they approved",
+          "Numbers, dates, durations and monetary caps are extracted as structured fields and validated, never narrated from prose"
+        ],
+        "note": "The last item catches more real errors than any other. Caps, notice periods and durations narrated in prose are where models quietly transpose digits, and it is exactly the detail a reviewer skims past because the sentence reads well."
+      },
+      "secondAsset": {
+        "kind": "table",
+        "title": "Why contract retrieval fails when ordinary RAG works",
+        "intro": "Contracts break standard retrieval in structural ways. Each of these is a solved problem once named, and each is invisible if you only measure end-to-end answer quality.",
+        "columns": ["Structure", "How naive retrieval fails", "What to do"],
+        "rows": [
+          [
+            "Defined terms",
+            "\"Confidential Information\" retrieved without its definition; the model applies the everyday meaning",
+            "Build a definitions index per document and inject resolved definitions into the retrieved context"
+          ],
+          [
+            "Cross-references",
+            "7.2(b) retrieved alone; the obligation it modifies in 7.1 is absent",
+            "Parse the reference graph and expand to referenced clauses within a bounded depth"
+          ],
+          [
+            "Amendments and restatements",
+            "A superseded clause retrieves as confidently as the operative one",
+            "Model document lineage explicitly; mark superseded text as non-retrievable or clearly flagged"
+          ],
+          [
+            "Precedence and order clauses",
+            "MSA and SOW conflict; the model picks whichever it retrieved",
+            "Encode precedence as data and resolve conflicts in code before generation"
+          ],
+          [
+            "Schedules, exhibits and annexes",
+            "Commercial terms live in an exhibit that was never indexed with the body",
+            "Treat the contract family as one retrieval unit with typed parts"
+          ],
+          [
+            "Clause boundaries",
+            "Fixed-size chunking splits an indemnity mid-sentence; neither half retrieves usefully",
+            "Chunk on legal structure — clause and sub-clause — with a parent reference for expansion"
+          ],
+          [
+            "Governing-law variation",
+            "The same clause type means different things across jurisdictions",
+            "Carry jurisdiction as retrieval metadata and in the prompt context"
+          ]
+        ],
+        "note": "Measure retrieval separately from answer quality here, or you will spend weeks tuning generation prompts while the defect is that the definitions section was never fetched."
+      },
+      "dominantFailures": ["retrieval-miss", "silent-truncation", "context-degradation"],
+      "relevantSolutions": ["agent-eval-suites", "llm-observability", "multi-tenant-ai-isolation"],
+      "faq": [
+        {
+          "q": "Can an LLM be trusted to review contracts?",
+          "a": "To triage, extract and flag — yes, with clause-level citations and a human reviewing anything material. To decide — no, and no serious legal team is asking for that.\n\nThe value is in narrowing a 60-page agreement to the eight clauses a lawyer should read, with each flag citing its source. That is a large, real saving and it does not require the model to be right unaided."
+        },
+        {
+          "q": "Why does standard RAG perform badly on contracts?",
+          "a": "Because contract meaning lives in structure that chunking destroys: defined terms fifty pages away, cross-reference chains, amendment lineage, and precedence between documents.\n\nRetrieve a clause without its definitions and referenced sub-clauses and the model reasons from incomplete text — confidently, because the fragment reads like complete language. Fixing this is retrieval engineering, not prompt engineering."
+        },
+        {
+          "q": "What audit trail does contract AI need?",
+          "a": "Immutable storage of exactly what the model was shown, the model and prompt versions, the output, and what the human reviewer saw before approving — reconstructable years later, after the model version has been retired.\n\nA \"reviewed by\" flag and a timestamp is not sufficient. If a missed indemnity cap becomes a dispute, the question is what the system presented and what the reviewer actually saw."
+        },
+        {
+          "q": "How do we stop the model inventing clause language?",
+          "a": "Structurally rather than by instruction. Require every assertion to cite a clause ID that resolves to stored text, verify each claim against its cited clause before returning, extract numbers and dates as validated fields rather than narrating them, and make \"not found in this contract\" a first-class answer.\n\nGenerate redlines deterministically in code, with the model proposing changes rather than rendering the diff. Prompt instructions like \"do not invent clauses\" are advisory and will eventually be ignored."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,102 @@
+---
+import data from '../data/testimonials.json';
+import { PROFILES, CONTACT } from '../consts.ts';
+
+/*
+  Renders real quotes when there are any, and a verification block when there are none.
+
+  The fallback is the point: an empty testimonials section is worse than no section, and a
+  placeholder quote is dishonest. Until src/data/testimonials.json has entries, this offers
+  the two things a sceptical buyer can actually act on — a profile with public history, and
+  an offer of real references on request.
+*/
+
+const items = data.testimonials as {
+  quote: string;
+  name: string;
+  title: string;
+  company?: string;
+  source?: string;
+}[];
+
+const hasQuotes = items.length > 0;
+---
+
+{
+  hasQuotes ? (
+    <div class="grid gap-4 md:grid-cols-2">
+      {items.map((t) => (
+        <figure class="flex flex-col rounded-2xl border p-6" style="background: var(--bg-raised);">
+          <svg
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            class="size-5 shrink-0"
+            style="color: var(--accent);"
+            aria-hidden="true"
+          >
+            <path d="M7.2 6C4.9 7.6 3.5 10.2 3.5 13.2c0 2.9 1.7 4.8 4.1 4.8 2.1 0 3.7-1.5 3.7-3.6 0-2-1.4-3.4-3.3-3.4-.4 0-.8 0-1.1.2.3-1.5 1.4-2.9 3-3.9L7.2 6Zm9.1 0c-2.3 1.6-3.7 4.2-3.7 7.2 0 2.9 1.7 4.8 4.1 4.8 2.1 0 3.7-1.5 3.7-3.6 0-2-1.4-3.4-3.3-3.4-.4 0-.8 0-1.1.2.3-1.5 1.4-2.9 3-3.9L16.3 6Z" />
+          </svg>
+          <blockquote class="mt-4 flex-1 text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+            {t.quote}
+          </blockquote>
+          <figcaption class="mt-5 border-t pt-4 text-sm">
+            <span class="font-semibold">{t.name}</span>
+            <span class="mt-0.5 block text-[13px]" style="color: var(--fg-subtle);">
+              {t.title}
+              {t.company && ` · ${t.company}`}
+              {t.source && ` · via ${t.source}`}
+            </span>
+          </figcaption>
+        </figure>
+      ))}
+    </div>
+  ) : (
+    <div class="rounded-2xl border p-7" style="background: var(--bg-raised);">
+      <h3 class="text-h3 font-semibold">{data.meta.verificationHeading}</h3>
+      <p class="mt-2.5 max-w-2xl text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+        {data.meta.verificationBody}
+      </p>
+
+      <div class="mt-6 flex flex-wrap gap-2.5">
+        <a
+          href={PROFILES.linkedin}
+          target="_blank"
+          rel="me noopener"
+          data-analytics="about-linkedin-verify"
+          class="inline-flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-semibold transition-colors"
+          style="border-color: var(--border-strong);"
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor" class="size-4" aria-hidden="true">
+            <path
+              d="M20.45 20.45h-3.56v-5.57c0-1.33-.03-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.35V9h3.41v1.56h.05c.48-.9 1.63-1.85 3.36-1.85 3.6 0 4.27 2.37 4.27 5.45v6.29ZM5.34 7.43a2.07 2.07 0 1 1 0-4.13 2.07 2.07 0 0 1 0 4.13Zm1.78 13.02H3.55V9h3.57v11.45Z"
+            />
+          </svg>
+          Recommendations on LinkedIn
+        </a>
+        <a
+          href={PROFILES.github}
+          target="_blank"
+          rel="me noopener"
+          data-analytics="about-github-verify"
+          class="inline-flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-semibold transition-colors"
+          style="border-color: var(--border-strong);"
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor" class="size-4" aria-hidden="true">
+            <path
+              d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.89 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.56-1.11-4.56-4.95 0-1.09.39-1.99 1.03-2.69-.1-.25-.45-1.27.1-2.65 0 0 .83-.27 2.75 1.03a9.6 9.6 0 0 1 5 0c1.91-1.3 2.75-1.03 2.75-1.03.55 1.38.2 2.4.1 2.65.64.7 1.03 1.6 1.03 2.69 0 3.85-2.34 4.7-4.57 4.95.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"
+            />
+          </svg>
+          Code on GitHub
+        </a>
+        <a
+          href={`mailto:${CONTACT.email}?subject=${encodeURIComponent('Reference request')}`}
+          data-analytics="about-references"
+          class="inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-opacity hover:opacity-90"
+          style="background: var(--accent-solid); color: var(--accent-solid-fg);"
+        >
+          Ask for references
+        </a>
+      </div>
+    </div>
+  )
+}

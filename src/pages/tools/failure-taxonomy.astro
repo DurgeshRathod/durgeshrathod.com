@@ -1,0 +1,393 @@
+---
+import Base from '../../layouts/Base.astro';
+import CtaRow from '../../components/CtaRow.astro';
+import taxonomy from '../../data/taxonomy.json';
+import { PILLARS } from '../../consts.ts';
+import { href } from '../../lib/paths.ts';
+import { toolSchema, faqSchema, breadcrumbSchema, type QA } from '../../lib/seo.ts';
+
+const { meta, symptoms } = taxonomy;
+
+const pillarName = (id: string) => PILLARS.find((p) => p.id === id)?.name ?? id;
+
+const severityColor = (s: string) =>
+  s === 'critical' ? 'var(--risk)' : s === 'high' ? 'var(--risk)' : 'var(--warn)';
+
+/*
+  Every symptom becomes an FAQ entry, using the hand-written `question` field from the
+  data file rather than one derived from the symptom text. Deriving it produced mangled
+  grammar ("Why does my AI agent calls the right tool…") in the FAQPage schema — which is
+  exactly the text search engines and AI answer engines read, so it has to be real English
+  phrased the way someone would actually type it.
+*/
+const faqs: QA[] = symptoms.map((s) => ({
+  q: s.question,
+  a: `${s.summary}\n\nMost common cause: ${s.causes[0].cause}. ${s.causes[0].why}\n\nFirst fix to try: ${s.fixes[0].fix} — ${s.fixes[0].detail} (${s.fixes[0].effort})`,
+}));
+
+const schema = [
+  toolSchema({
+    name: meta.title,
+    description: meta.description,
+    path: '/tools/failure-taxonomy',
+    category: 'ReferenceApplication',
+  }),
+  faqSchema(faqs),
+  breadcrumbSchema([
+    { name: 'Home', path: '/' },
+    { name: 'Tools', path: '/tools' },
+    { name: 'Failure Taxonomy', path: '/tools/failure-taxonomy' },
+  ]),
+];
+
+const severities = ['critical', 'high', 'medium'];
+---
+
+<Base
+  title="AI Agent Failure Taxonomy — 9 ways production agents fail, and how to fix each"
+  description={meta.description}
+  path="/tools/failure-taxonomy"
+  schema={schema}
+  published="2026-08-02"
+>
+  <section class="container-page pt-14 pb-8">
+    <nav aria-label="Breadcrumb" class="text-sm" style="color: var(--fg-subtle);">
+      <a href={href('/')} class="hover:underline">Home</a>
+      <span class="mx-1.5" aria-hidden="true">/</span>
+      <a href={href('/tools')} class="hover:underline">Tools</a>
+      <span class="mx-1.5" aria-hidden="true">/</span>
+      <span style="color: var(--fg-muted);">Failure taxonomy</span>
+    </nav>
+
+    <p class="mt-8 text-xs font-semibold uppercase tracking-[0.14em]" style="color: var(--accent);">
+      Free reference · {symptoms.length} named failure modes
+    </p>
+    <h1 class="text-h1 mt-3 max-w-3xl font-semibold" style="text-wrap: balance;">
+      Nine ways production AI agents fail
+    </h1>
+    <p class="text-lead mt-5 max-w-2xl" style="color: var(--fg-muted);">
+      {meta.premise}
+    </p>
+
+    <div class="mt-8 grid gap-4 sm:grid-cols-3">
+      {
+        PILLARS.map((p) => {
+          const count = symptoms.filter((s) => s.pillar === p.id).length;
+          return (
+            <div class="rounded-xl border p-4" style="background: var(--bg-raised);">
+              <p class="flex items-baseline gap-2">
+                <span class="text-h3 font-semibold tabular-nums">{count}</span>
+                <span class="text-sm font-semibold">{p.name}</span>
+              </p>
+              <p class="mt-1 text-[13px] leading-relaxed" style="color: var(--fg-muted);">
+                {p.claim}
+              </p>
+            </div>
+          );
+        })
+      }
+    </div>
+  </section>
+
+  <!-- ── Filters ──────────────────────────────────────────────────────── -->
+  <section class="container-page pb-6">
+    <div
+      class="sticky top-16 z-20 -mx-2 rounded-xl border px-3 py-3 backdrop-blur-xl"
+      style="background: color-mix(in oklab, var(--bg-raised) 90%, transparent);"
+    >
+      <div class="flex flex-wrap items-center gap-2">
+        <label class="relative min-w-[200px] flex-1">
+          <span class="sr-only">Filter failure modes</span>
+          <input
+            type="text"
+            data-filter-search
+            placeholder="Describe what you're seeing — loop, cost, truncated…"
+            class="w-full rounded-lg border px-3 py-2 text-sm outline-none"
+            style="background: var(--bg); color: var(--fg);"
+          />
+        </label>
+
+        <div class="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter by pillar">
+          <button
+            type="button"
+            data-filter-pillar="all"
+            class="rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors"
+            aria-pressed="true">All</button
+          >
+          {
+            PILLARS.map((p) => (
+              <button
+                type="button"
+                data-filter-pillar={p.id}
+                class="rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors"
+                aria-pressed="false"
+              >
+                {p.name}
+              </button>
+            ))
+          }
+        </div>
+
+        <div class="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter by severity">
+          {
+            severities.map((s) => (
+              <button
+                type="button"
+                data-filter-severity={s}
+                class="rounded-lg border px-2.5 py-1.5 text-xs font-semibold capitalize transition-colors"
+                aria-pressed="false"
+                style={`color: ${severityColor(s)};`}
+              >
+                {s}
+              </button>
+            ))
+          }
+        </div>
+      </div>
+      <p data-filter-count class="mt-2 text-xs" style="color: var(--fg-subtle);"></p>
+    </div>
+  </section>
+
+  <!-- ── Symptoms ─────────────────────────────────────────────────────── -->
+  <section class="container-page pb-16">
+    <h2 class="sr-only">Failure modes</h2>
+    <div class="grid gap-4">
+      {
+        symptoms.map((s, i) => (
+          <article
+            id={s.slug}
+            data-symptom
+            data-pillar={s.pillar}
+            data-severity={s.severity}
+            data-haystack={`${s.symptom} ${s.aka.join(' ')} ${s.summary} ${s.id}`.toLowerCase()}
+            class="scroll-mt-32 rounded-2xl border p-6 sm:p-7"
+            style="background: var(--bg-raised);"
+          >
+            <div class="flex flex-wrap items-center gap-2.5">
+              <span class="font-mono text-xs font-bold" style="color: var(--accent);">
+                {String(i + 1).padStart(2, '0')}
+              </span>
+              <span
+                class="rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide"
+                style={`color: ${severityColor(s.severity)}; background: color-mix(in oklab, ${severityColor(s.severity)} 12%, transparent);`}
+              >
+                {s.severity}
+              </span>
+              <span class="text-[11px] font-semibold uppercase tracking-wide" style="color: var(--fg-subtle);">
+                {s.frequency} · {pillarName(s.pillar)}
+              </span>
+              <a
+                href={`#${s.slug}`}
+                class="ml-auto font-mono text-[11px] hover:underline"
+                style="color: var(--fg-subtle);"
+                aria-label={`Link to ${s.symptom}`}
+              >
+                #{s.id}
+              </a>
+            </div>
+
+            <h3 class="text-h3 mt-3 font-semibold leading-snug">{s.symptom}</h3>
+
+            <p class="mt-3 max-w-3xl text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+              {s.summary}
+            </p>
+
+            <p class="mt-3 text-[13px] leading-relaxed" style="color: var(--fg-subtle);">
+              <span class="font-semibold">Also described as:</span> {s.aka.join(' · ')}
+            </p>
+
+            <div class="mt-6 grid gap-6 lg:grid-cols-2">
+              <div>
+                <h4 class="text-xs font-semibold uppercase tracking-wider" style="color: var(--risk);">
+                  Root causes — check in this order
+                </h4>
+                <ol class="mt-3 grid gap-3.5">
+                  {s.causes.map((c, ci) => (
+                    <li class="border-l-2 pl-3.5" style="border-color: var(--border-strong);">
+                      <p class="text-[14px] font-semibold leading-snug">
+                        {ci + 1}. {c.cause}
+                      </p>
+                      <p class="mt-1 text-[13px] leading-relaxed" style="color: var(--fg-muted);">
+                        {c.why}
+                      </p>
+                      <p class="mt-1.5 text-[13px] leading-relaxed" style="color: var(--fg-subtle);">
+                        <span class="font-semibold" style="color: var(--fg-muted);">How to check:</span>{' '}
+                        {c.check}
+                      </p>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+
+              <div>
+                <h4 class="text-xs font-semibold uppercase tracking-wider" style="color: var(--good);">
+                  Fixes that hold
+                </h4>
+                <ol class="mt-3 grid gap-3.5">
+                  {s.fixes.map((f) => (
+                    <li class="border-l-2 pl-3.5" style="border-color: var(--good);">
+                      <div class="flex flex-wrap items-baseline justify-between gap-2">
+                        <p class="text-[14px] font-semibold leading-snug">{f.fix}</p>
+                        <span class="font-mono text-[11px] whitespace-nowrap" style="color: var(--fg-subtle);">
+                          {f.effort}
+                        </span>
+                      </div>
+                      <p class="mt-1 text-[13px] leading-relaxed" style="color: var(--fg-muted);">
+                        {f.detail}
+                      </p>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            </div>
+
+            {s.related.length > 0 && (
+              <p class="mt-5 border-t pt-4 text-[13px]" style="color: var(--fg-subtle);">
+                <span class="font-semibold">Often appears alongside:</span>{' '}
+                {s.related.map((rid, ri) => {
+                  const rel = symptoms.find((x) => x.id === rid);
+                  if (!rel) return null;
+                  return (
+                    <>
+                      {ri > 0 && ' · '}
+                      <a href={`#${rel.slug}`} class="underline decoration-1 underline-offset-2" style="color: var(--fg-muted);">
+                        {rel.symptom}
+                      </a>
+                    </>
+                  );
+                })}
+              </p>
+            )}
+          </article>
+        ))
+      }
+    </div>
+
+    <p data-filter-empty hidden class="rounded-2xl border p-8 text-center text-[15px]" style="color: var(--fg-muted);">
+      Nothing matched that. If your failure is not on this list I would genuinely like to hear
+      about it — it probably belongs here.
+    </p>
+  </section>
+
+  <!-- ── Closing ──────────────────────────────────────────────────────── -->
+  <section class="container-page border-t py-14">
+    <div class="grid gap-6 lg:grid-cols-2">
+      <div class="rounded-2xl border p-7" style="background: var(--bg-raised);">
+        <h2 class="text-h3 font-semibold">Find out which of these you have</h2>
+        <p class="mt-2.5 text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+          The readiness scorecard maps your setup against the practices that prevent these
+          failures, and ranks the gaps by risk. Twelve questions, four minutes, nothing leaves
+          your browser.
+        </p>
+        <a
+          href={href('/scorecard')}
+          data-analytics="taxonomy-scorecard"
+          class="mt-6 inline-flex items-center gap-2 rounded-xl px-5 py-3 text-[15px] font-semibold transition-opacity hover:opacity-90"
+          style="background: var(--accent-solid); color: var(--accent-solid-fg);"
+        >
+          Score my agent
+        </a>
+      </div>
+
+      <div class="rounded-2xl border p-7" style="background: var(--bg-raised);">
+        <h2 class="text-h3 font-semibold">Or have me diagnose it against your real traffic</h2>
+        <p class="mt-2.5 text-[15px] leading-relaxed" style="color: var(--fg-muted);">
+          An audit classifies your actual failures against this taxonomy using your code and
+          logs, then hands you the eval suite that stops them recurring.
+        </p>
+        <div class="mt-6">
+          <CtaRow source="taxonomy-foot" intent="audit" primaryLabel="Talk about an audit" booking={false} />
+        </div>
+      </div>
+    </div>
+  </section>
+</Base>
+
+<script is:inline>
+  (function () {
+    var cards = Array.from(document.querySelectorAll('[data-symptom]'));
+    if (!cards.length) return;
+
+    var search = document.querySelector('[data-filter-search]');
+    var countEl = document.querySelector('[data-filter-count]');
+    var emptyEl = document.querySelector('[data-filter-empty]');
+    var pillarBtns = Array.from(document.querySelectorAll('[data-filter-pillar]'));
+    var sevBtns = Array.from(document.querySelectorAll('[data-filter-severity]'));
+
+    var pillar = 'all';
+    var severities = new Set();
+
+    function paintButtons() {
+      pillarBtns.forEach(function (b) {
+        var on = b.getAttribute('data-filter-pillar') === pillar;
+        b.setAttribute('aria-pressed', String(on));
+        b.style.background = on ? 'var(--accent)' : 'transparent';
+        b.style.color = on ? 'var(--accent-fg)' : 'var(--fg-muted)';
+        b.style.borderColor = on ? 'var(--accent)' : 'var(--border)';
+      });
+      sevBtns.forEach(function (b) {
+        var key = b.getAttribute('data-filter-severity');
+        var on = severities.has(key);
+        b.setAttribute('aria-pressed', String(on));
+        b.style.background = on ? 'color-mix(in oklab, currentColor 16%, transparent)' : 'transparent';
+        b.style.borderColor = on ? 'currentColor' : 'var(--border)';
+      });
+    }
+
+    function apply() {
+      var q = search.value.trim().toLowerCase();
+      var terms = q ? q.split(/\s+/) : [];
+      var shown = 0;
+
+      cards.forEach(function (c) {
+        var okPillar = pillar === 'all' || c.getAttribute('data-pillar') === pillar;
+        var okSev = severities.size === 0 || severities.has(c.getAttribute('data-severity'));
+        var hay = c.getAttribute('data-haystack');
+        var okText =
+          terms.length === 0 ||
+          terms.every(function (t) {
+            return hay.indexOf(t) > -1;
+          });
+
+        var show = okPillar && okSev && okText;
+        c.hidden = !show;
+        if (show) shown++;
+      });
+
+      emptyEl.hidden = shown > 0;
+      countEl.textContent =
+        shown === cards.length
+          ? 'Showing all ' + cards.length + ' failure modes.'
+          : 'Showing ' + shown + ' of ' + cards.length + '.';
+      paintButtons();
+    }
+
+    search.addEventListener('input', apply);
+
+    pillarBtns.forEach(function (b) {
+      b.addEventListener('click', function () {
+        pillar = b.getAttribute('data-filter-pillar');
+        apply();
+      });
+    });
+
+    sevBtns.forEach(function (b) {
+      b.addEventListener('click', function () {
+        var key = b.getAttribute('data-filter-severity');
+        if (severities.has(key)) severities.delete(key);
+        else severities.add(key);
+        apply();
+      });
+    });
+
+    // A deep link to a symptom should reveal it even if filters would hide it.
+    if (location.hash) {
+      var target = document.querySelector(location.hash);
+      if (target && target.hasAttribute('data-symptom')) {
+        target.style.borderColor = 'var(--accent)';
+      }
+    }
+
+    apply();
+  })();
+</script>

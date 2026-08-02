@@ -1,0 +1,9 @@
+{
+  "meta": {
+    "updated": "2026-08-02",
+    "note": "Paste real recommendations here. Your LinkedIn recommendations are already publicly attributed there, so reproducing them with name and title is standard practice — copy the text verbatim rather than paraphrasing. While this array is empty the component renders the verification block instead, so the page can never look like it has an empty testimonials section.",
+    "verificationHeading": "Checking me out?",
+    "verificationBody": "Nine years of history, recommendations and endorsements are on LinkedIn, and the code is on GitHub. For client references, ask me directly — I will put you in touch with people I have delivered for rather than sending you a curated quote."
+  },
+  "testimonials": []
+}

@@ -1,0 +1,155 @@
+---
+title: '520 million parameters every 15 minutes'
+cardTitle: 'Throughput discipline at telecom scale'
+description: 'A configuration-driven telecom data platform processing 200M configuration and 320M performance parameters per 15-minute cycle on Golang, Kafka, Kubernetes and PostgreSQL. The project that shaped how I think about bounded resources — and why I trust it more than any AI credential I have.'
+published: '2026-08-02'
+order: 3
+headlineStat:
+  value: '520M / 15 min'
+  label: 'Sustained ingestion'
+role: 'Technical Lead — architecture, backend, performance'
+stack:
+  - Golang
+  - Apache Kafka
+  - Kubernetes
+  - PostgreSQL
+  - Oracle
+  - Azure Data Explorer
+  - Temporal
+pillars:
+  - cost
+  - observability
+keywords:
+  - high throughput data pipeline
+  - Golang Kafka Kubernetes
+  - configuration-driven architecture
+  - telecom performance management
+  - distributed systems
+whatBroke: 'Throughput was fine in steady state and collapsed on late-arriving batches. The pipeline had no backpressure — it had optimism, which is a different thing.'
+---
+
+import ArchitectureDiagram from '../../components/ArchitectureDiagram.astro';
+
+This is not an AI project, and it is the one I would point to first if you wanted to know
+whether I can be trusted with a production system.
+
+A telecom operator needed configuration management (CM) and performance management (PM)
+data from network equipment ingested, transformed, and landed in analytical stores on a
+fixed 15-minute cycle. **200 million configuration parameters and 320 million performance
+parameters per cycle** — 520 million in total, every quarter hour, indefinitely.
+
+The hard constraint was not volume. It was that the cycle is fixed. If a 15-minute batch
+takes 16 minutes, you do not have a slow pipeline; you have a queue that grows forever.
+
+## The part that mattered: configuration, not code
+
+New telecom data sources arrived constantly, each with its own format, transformation rules
+and destination. The naive path is a new pipeline per source, which becomes a codebase
+nobody can change safely.
+
+Instead the platform read **source connectors, processing logic, transformation rules and
+destination connectors from configuration** and assembled the pipeline at runtime.
+Onboarding a new data source became a config change with metadata in PostgreSQL, not a
+deployment.
+
+<ArchitectureDiagram
+  title="One framework, many pipelines, assembled from config"
+  caption="Every stage is bounded. The interesting decisions are about what happens when a stage cannot keep up — because at this cadence, something eventually cannot."
+  nodes={[
+    {
+      id: 'config',
+      label: 'Pipeline config',
+      sub: 'PostgreSQL metadata',
+      detail:
+        'Source definitions, field mappings, transformation rules and destinations live as metadata. A new pipeline is a row set, not a release. This is the decision the whole platform rests on.',
+      tradeoff:
+        'A config-driven framework is harder to reason about than explicit code — a bug can come from data rather than logic. We paid for that with strict config validation on write and a dry-run mode.',
+    },
+    {
+      id: 'ingest',
+      label: 'Source connectors',
+      sub: 'Golang, dynamically loaded',
+      detail:
+        'Connectors are selected per pipeline from config. Golang was chosen for predictable memory behaviour and cheap concurrency at this parameter count.',
+      tradeoff:
+        'Golang over the JVM meant fewer off-the-shelf telecom libraries and more written by hand. Predictable GC pauses at 500M+ records per cycle were worth it.',
+    },
+    {
+      id: 'kafka',
+      label: 'Kafka',
+      sub: 'Partitioned by network element',
+      detail:
+        'Kafka decouples ingestion rate from processing rate and provides replay. Partitioning by network element kept related records ordered where ordering mattered.',
+      tradeoff:
+        'Partition key choice locks in your parallelism ceiling. We picked network element because reprocessing one element in isolation is the common operational need.',
+    },
+    {
+      id: 'process',
+      label: 'Transform workers',
+      sub: 'Kubernetes, horizontally scaled',
+      detail:
+        'Stateless workers apply config-defined transformations. Scaling is a replica count, and consumer lag is the signal that drives it.',
+      tradeoff:
+        'Stateless meant re-reading reference data per batch rather than holding it in memory. We recovered that with a bounded local cache after measuring — not before.',
+      problem: true,
+    },
+    {
+      id: 'sink',
+      label: 'Destination writers',
+      sub: 'PostgreSQL · Oracle · ADX',
+      detail:
+        'Batched writes sized to each destination. Analytical stores want large batches; operational stores want smaller, more frequent ones. Batch size is per-destination config.',
+      tradeoff:
+        'Larger batches mean better throughput and worse failure granularity — one bad record can fail a big batch. We settled it per destination with measurement rather than a global default.',
+    },
+    {
+      id: 'observe',
+      label: 'Lag & latency monitoring',
+      sub: 'New Relic',
+      detail:
+        'Consumer lag per partition and end-to-end cycle time were the two numbers that mattered. If cycle time trends toward 15 minutes, you have a problem in about an hour.',
+      tradeoff:
+        'We alerted on the trend rather than the threshold. Alerting at the threshold means alerting when it is already too late.',
+    },
+  ]}
+/>
+
+## What broke
+
+Steady state was comfortable. Then a network region delivered a delayed batch, and the
+pipeline received roughly two cycles of data inside one cycle window.
+
+Throughput did not degrade gracefully — it collapsed. Workers accepted everything they were
+handed, memory pressure rose, Kubernetes started evicting pods, evicted work was
+redelivered, and redelivery added load to an already overloaded system. A **20% input spike
+produced an outage**, which is the signature of a system with no backpressure.
+
+The fix was unglamorous and is the lesson I carry into every agent system I now look at:
+
+- **Bound every queue and buffer explicitly.** An unbounded buffer is a delayed crash.
+- **Reject or shed load rather than accept work you cannot finish.** Refusing work is a
+  valid, observable behaviour. Accepting it and dying is not.
+- **Make redelivery idempotent,** or retries amplify the incident that caused them.
+- **Alert on the trend, not the threshold.** Cycle time creeping from 9 to 12 minutes is
+  the actionable signal; hitting 15 is the incident.
+
+## Why this is on a page about AI agents
+
+Everything in that list applies directly to agent systems, and almost none of it is being
+applied.
+
+An agent run with no step ceiling is an unbounded queue. An agent that retries a failing
+tool without backoff is redelivery amplification. An agent system with no per-run token
+budget is a pipeline that accepts work it cannot afford to finish. A cost alert that fires
+at the monthly budget is alerting at the threshold instead of the trend.
+
+The AI industry is rediscovering, expensively, what data engineering learned in the 2010s.
+When I say I make agents survive production, this is the experience I am drawing on —
+[the failure taxonomy](/tools/failure-taxonomy) is largely these same lessons, translated.
+
+## Numbers
+
+- **520M parameters per 15-minute cycle** sustained — 200M CM, 320M PM.
+- **New data sources onboarded via configuration**, with no application deployment.
+- Cycle-time headroom maintained deliberately, so a delayed batch is absorbed rather than
+  amplified.

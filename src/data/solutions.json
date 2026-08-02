@@ -1,0 +1,602 @@
+{
+  "meta": {
+    "version": "1.0",
+    "updated": "2026-08-02",
+    "title": "Solutions",
+    "description": "Five things I get hired to do, with the method, the effort, and the artefact you keep. Each one is a specific engagement, not a capability list.",
+    "premise": "Consultants list capabilities. Buyers have problems. These pages are organised by the problem you arrived with, and each one contains the actual method — including the checklist or spec I would hand you — so you can judge whether it is worth paying me or just do it yourself."
+  },
+  "solutions": [
+    {
+      "slug": "agent-eval-suites",
+      "name": "Agent eval suites",
+      "order": 1,
+      "pillar": "reliability",
+      "h1": "Build an eval suite that catches regressions before your users do",
+      "tagline": "Stop shipping prompt changes as unmeasured bets.",
+      "description": "How to build an AI agent eval suite that runs in CI: which 30 cases to start with, how to score them, and how to make production failures flow back in automatically. The method I use on client engagements.",
+      "keywords": [
+        "AI agent eval suite",
+        "LLM evaluation",
+        "LLM regression testing",
+        "LLM as judge",
+        "agent testing in CI"
+      ],
+      "outcome": "A suite your team owns that fails the build when agent quality drops.",
+      "symptoms": [
+        "Someone changed a prompt last week and nobody can say whether it helped",
+        "Quality discussions are arguments about anecdotes rather than numbers",
+        "You found out about a regression from a customer, not from CI",
+        "Your \"tests\" are a notebook one engineer runs by hand before a release",
+        "You are afraid to upgrade the model because you cannot tell what would break"
+      ],
+      "why": [
+        "An agent has no compiler. Nothing tells you that a two-word prompt change broke tool selection on 8% of inputs — you find out when a customer complains, three weeks later, with no way to attribute it to the change that caused it.",
+        "This is the gap that makes every other improvement unsafe. You cannot route models to cut cost if you cannot prove quality held. You cannot upgrade to a newer model. You cannot refactor a prompt with confidence. An eval suite is not a testing nicety; it is the thing that makes the rest of the work possible.",
+        "It is also the single most common thing missing. Most teams I look at have zero automated evals on agent output, while having thorough unit tests on the glue code around it."
+      ],
+      "asset": {
+        "kind": "table",
+        "title": "The first 30 eval cases, by category",
+        "intro": "Teams stall on \"how many cases do we need?\" Thirty real ones, distributed like this, catches most of what matters. Sample from actual production traffic — team-authored cases systematically miss the malformed middle of the distribution.",
+        "columns": ["Category", "Cases", "What it catches"],
+        "rows": [
+          ["Happy path", "6", "Core behaviour. The baseline that must never regress."],
+          ["Malformed input", "5", "Typos, fragments, no punctuation, wrong language. The most common real traffic and the least tested."],
+          ["Ambiguous requests", "4", "Where the agent should ask rather than guess. Catches confident wrong answers."],
+          ["Must-refuse", "4", "Out of scope, unsafe, or not authorised. What it declines is as much a requirement as what it does."],
+          ["Adversarial / injection", "3", "Prompt injection, instruction override, data exfiltration attempts."],
+          ["Long conversation", "3", "30+ turns. Instruction drift only appears at length, and almost nobody tests at length."],
+          ["Tool-call edge cases", "3", "Missing records, permission denied, empty results, timeouts."],
+          ["Known past failures", "2+", "Every production incident becomes a permanent case. This category only grows."]
+        ],
+        "note": "Grow the last row forever and stop growing the others. A suite that only ever gets happy-path cases added is a suite that stops finding bugs."
+      },
+      "secondAsset": {
+        "kind": "table",
+        "title": "How to score each case",
+        "intro": "The scoring method matters more than the case count. LLM-as-judge is overused — it is slow, costs money on every CI run, and is itself non-deterministic. Use the cheapest method that can actually detect the failure.",
+        "columns": ["Method", "Use for", "Cost per run"],
+        "rows": [
+          ["Exact / schema assertion", "Structured output, tool name, tool arguments, refusal flags", "Free, instant, deterministic"],
+          ["Deterministic check in code", "Numbers, dates, IDs, citation present, PII absent", "Free, instant"],
+          ["Retrieval recall@k", "Whether the right document was fetched — measured separately from the answer", "Free once labelled"],
+          ["LLM-as-judge", "Tone, helpfulness, faithfulness to source — genuinely subjective qualities only", "Real money on every CI run; use a cheap model and pin the version"],
+          ["Human review", "Calibrating the judge, and a small sample each release", "Expensive; budget a fixed sample size"]
+        ],
+        "note": "Rule of thumb: if a check can be written as an assertion, it must be. Reach for a judge only when the property is genuinely subjective."
+      },
+      "method": [
+        {
+          "phase": "Sample real traffic",
+          "detail": "Pull a stratified sample of real inputs — including the confusing ones — and anonymise where needed. If there are no logs to sample, that is finding number one and we fix it first.",
+          "effort": "0.5 day"
+        },
+        {
+          "phase": "Label expected outcomes",
+          "detail": "Not expected wording — expected decisions, tool calls, and refusals. This is the part that needs someone who knows the domain, so we do it together.",
+          "effort": "1 day, with your team"
+        },
+        {
+          "phase": "Build the harness",
+          "detail": "Runs the suite against your agent, scores by the cheapest adequate method per case, and emits a per-category report rather than one aggregate number.",
+          "effort": "1.5 days"
+        },
+        {
+          "phase": "Wire into CI with a threshold",
+          "detail": "A pass threshold that blocks merges, and a separate softer threshold that warns. An eval suite nobody is forced to look at decays within a month.",
+          "effort": "0.5 day"
+        },
+        {
+          "phase": "Close the loop from production",
+          "detail": "One-click capture from a trace to a new eval case. If adding a case is manual it stops happening the first week the team is busy.",
+          "effort": "1 day"
+        }
+      ],
+      "deliverables": [
+        "30+ labelled eval cases drawn from your real traffic",
+        "A scoring harness with per-category reporting, not one aggregate score",
+        "CI integration with a pass threshold that blocks merges",
+        "A capture path so production failures become permanent cases",
+        "A short written guide so your team can extend it without me"
+      ],
+      "relatedFailures": ["works-in-dev", "nondeterminism", "context-degradation"],
+      "domains": ["HR analytics", "Recruitment", "Workflow automation"],
+      "engagement": "audit",
+      "faq": [
+        {
+          "q": "How many eval cases do we actually need?",
+          "a": "Thirty real cases, distributed across the categories in the table above, catches most of what matters. Case count is the wrong metric to optimise — coverage across failure categories is what finds bugs.\n\nThree hundred happy-path cases will find less than thirty well-chosen ones that include malformed input, ambiguity, refusals and long conversations."
+        },
+        {
+          "q": "Should we use LLM-as-judge for evaluation?",
+          "a": "Only for genuinely subjective properties like tone or helpfulness. It is slow, costs money on every CI run, and is itself non-deterministic — which means your test suite has flaky tests by construction.\n\nAnything that can be an assertion should be an assertion. In practice about 70% of useful checks are deterministic: schema validity, tool name, argument correctness, citation presence, PII absence, refusal behaviour."
+        },
+        {
+          "q": "Can we build an eval suite without production traffic yet?",
+          "a": "Yes, but expect it to be weaker. Hand-authored cases systematically miss the inputs you would never think to write, which is exactly where agents fail.\n\nStart with the categories above, ship behind a limited rollout, and treat the first two weeks of real traffic as your real dataset. Prioritise the logging that makes that possible before launch, not after."
+        },
+        {
+          "q": "How long does this take to build?",
+          "a": "About 4–5 days for a first suite that pays for itself immediately, assuming some logs exist to sample from. That is the estimate I quote and the sequence is in the method above.\n\nIf there is no logging at all, add 2–3 days for the tracing needed to sample real traffic — see the observability engagement."
+        }
+      ]
+    },
+    {
+      "slug": "llm-observability",
+      "name": "LLM observability & tracing",
+      "order": 2,
+      "pillar": "observability",
+      "h1": "Make agent failures diagnosable instead of mysterious",
+      "tagline": "One trace ID that explains the whole run.",
+      "description": "How to instrument an AI agent so any run can be replayed and explained: the minimum span fields every agent needs, what to alert on, and how to make failures countable. Includes the trace spec I implement on engagements.",
+      "keywords": [
+        "LLM observability",
+        "agent tracing",
+        "OpenTelemetry LLM",
+        "LLM monitoring",
+        "agent debugging"
+      ],
+      "outcome": "Any bad run can be pulled up, replayed, and explained in minutes.",
+      "symptoms": [
+        "A customer reports a bad answer from Tuesday and you cannot reconstruct what happened",
+        "Debugging means grepping application logs and guessing",
+        "You cannot say what percentage of runs fail, because failures have no categories",
+        "Nobody knows which step in a multi-step agent is the slow one",
+        "You have prompt/response logs, but nothing links them into a single run"
+      ],
+      "why": [
+        "Agents fail in ways conventional services do not: the code ran correctly and the output was still wrong. Stack traces and HTTP status codes tell you nothing, because nothing threw.",
+        "What you need instead is the decision path — every prompt, every tool call with its arguments, every retry, every token count — tied together under one trace ID. Without it, mean time to diagnosis is measured in days and a meaningful share of failures are simply never explained.",
+        "The second-order benefit matters more than the debugging: once failures are traced, they can be categorised, and once categorised they can be counted. Then you fix by frequency times severity instead of by whoever complained loudest."
+      ],
+      "asset": {
+        "kind": "table",
+        "title": "The minimum viable agent trace",
+        "intro": "Every span an agent emits should carry these fields. This is the spec I implement — copy it. Most teams are missing rows 4, 8, 9 and 11, which are precisely the ones that make cost and correctness debuggable.",
+        "columns": ["Field", "Why it earns its place"],
+        "rows": [
+          ["trace_id", "One ID spanning the entire run, propagated across every service. Without this you have logs, not traces."],
+          ["step_index", "Position in the run. Makes loops visible as a pattern rather than a mystery."],
+          ["step_type", "model_call · tool_call · retrieval · guardrail. Lets you aggregate latency and cost by kind of work."],
+          ["prompt_version", "The exact prompt artefact used. This is what makes a reported failure reproducible after a deploy."],
+          ["model_id", "Pinned version, not a floating alias. Catches silent fallbacks to a more expensive model."],
+          ["tokens_in / tokens_out", "Per call, not per run. Cost attribution is impossible without this granularity."],
+          ["cache_read_tokens", "Distinguishes a working cache from an expensive one. A low hit rate on the 1-hour tier costs money."],
+          ["cost_usd", "Computed at write time. Costs derived later from aggregate token counts are always wrong."],
+          ["tool_name / tool_args", "The arguments, not just the name. Hallucinated arguments are invisible otherwise."],
+          ["tool_args_valid", "Whether validation passed. Rejection rate per tool is one of the best quality signals available and almost nobody tracks it."],
+          ["stop_reason", "end_turn · max_tokens · tool_use · error. A length-based stop treated as success is a silent truncation bug."],
+          ["retry_count", "Retries are billed and add latency. Untracked, that time and money appears to vanish into the model call."],
+          ["latency_ms", "Per step. A run-level number cannot tell you which step to fix."],
+          ["outcome", "success · refused · failed · escalated. The field that turns traces into countable failure rates."],
+          ["failure_category", "Tagged against a named taxonomy. Free-text notes cannot be aggregated."]
+        ],
+        "note": "Vendor choice matters far less than field coverage. Langfuse, LangSmith, Braintrust, Phoenix or plain OpenTelemetry all work — a tool with these fields beats a better tool without them."
+      },
+      "secondAsset": {
+        "kind": "table",
+        "title": "What to alert on — and what not to",
+        "intro": "Most agent alerting is either absent or so noisy it gets muted. Alert on trends and rates, not thresholds and individual events.",
+        "columns": ["Alert on", "Not on", "Why"],
+        "rows": [
+          ["Cost per conversation drifting up", "Monthly budget exceeded", "A unit-cost alert fires while it is still a bug. A budget alert fires after the money is gone."],
+          ["p95 latency per operation", "Average latency", "Averages hide exactly the runs where users abandon."],
+          ["Tool rejection rate rising", "Individual rejected calls", "The rate is the signal; single events are noise."],
+          ["Rate of length-capped responses", "Any single truncation", "A rising rate means your limits no longer fit your traffic — a leading indicator."],
+          ["Failure rate by category", "Total error count", "An undifferentiated count cannot be prioritised."],
+          ["Repeated identical tool calls in a run", "High step counts alone", "Repetition is the clearest signal of a stuck agent; a long run may be legitimate."]
+        ],
+        "note": "Every alert needs a defined action. An alert nobody knows how to respond to gets muted within two weeks, and then you have no alerting and a false sense of having some."
+      },
+      "method": [
+        {
+          "phase": "Map the run",
+          "detail": "Walk one real request end to end and identify every point where a decision is made or a boundary crossed. That list becomes the span set.",
+          "effort": "0.5 day"
+        },
+        {
+          "phase": "Instrument spans",
+          "detail": "Implement the field spec above, propagating one trace ID across services. Existing tool choice is respected — I do not replace a working stack to prove a point.",
+          "effort": "2 days"
+        },
+        {
+          "phase": "Define the failure taxonomy",
+          "detail": "Name your failure modes so they can be tagged and counted. I start from my published taxonomy and specialise it to your agent.",
+          "effort": "0.5 day"
+        },
+        {
+          "phase": "Dashboards and alerts",
+          "detail": "Cost per conversation, p95 by operation, failure rate by category, tool rejection rate. Each alert gets a documented response.",
+          "effort": "1 day"
+        },
+        {
+          "phase": "Capture path into evals",
+          "detail": "One click from a bad trace to a new eval case, so diagnosis feeds prevention instead of stopping at explanation.",
+          "effort": "0.5 day"
+        }
+      ],
+      "deliverables": [
+        "Step-level tracing across the whole run with one propagated trace ID",
+        "The full field spec implemented, including cost and validity fields",
+        "A failure taxonomy specialised to your agent, with tagging in place",
+        "Dashboards for cost per conversation, p95 by operation, and failure rate by category",
+        "Alerts with documented responses, tuned to rates rather than thresholds"
+      ],
+      "relatedFailures": ["nondeterminism", "silent-truncation", "latency-tail"],
+      "domains": ["HR analytics", "Telecom data platforms", "Workflow automation"],
+      "engagement": "audit",
+      "faq": [
+        {
+          "q": "Which LLM observability tool should we use?",
+          "a": "Field coverage matters far more than vendor. Langfuse, LangSmith, Braintrust, Arize Phoenix and plain OpenTelemetry can all carry the spec above; a tool with complete fields beats a better tool with gaps.\n\nIf you have no strong preference: self-hosted Langfuse if data residency matters, a managed option if you would rather not run it. Decide on residency and pricing model, not features."
+        },
+        {
+          "q": "Is OpenTelemetry enough for LLM tracing?",
+          "a": "Yes, technically — the semantics for LLM spans are conventions on top of ordinary tracing, and if you already run OTel it is the lowest-friction path.\n\nWhat you give up is the purpose-built UI: side-by-side prompt diffing, replay, and eval integration. If your team lives in traces already, OTel is fine. If nobody will open the tracing UI unprompted, a dedicated tool gets used more."
+        },
+        {
+          "q": "How much latency does tracing add?",
+          "a": "Single-digit milliseconds per span if you batch and export asynchronously, which is negligible against model calls measured in seconds.\n\nThe real cost is storage and retention, not latency. Keep full traces for a short window and sampled traces for longer — but keep all failed runs, because those are the ones you will need."
+        },
+        {
+          "q": "We already log prompts and responses. Is that observability?",
+          "a": "No, and this is the most common misconception. Unlinked prompt/response pairs cannot answer \"what did this run do and why\" — they have no trace ID, no step ordering, no tool arguments, no retry count, no stop reason.\n\nLogs tell you what was said. A trace tells you what was decided. Debugging an agent needs the second."
+        }
+      ]
+    },
+    {
+      "slug": "llm-cost-reduction",
+      "name": "LLM cost reduction",
+      "order": 3,
+      "pillar": "cost",
+      "h1": "Cut agent spend without quietly cutting quality",
+      "tagline": "Usually 40–70% recoverable, and the levers are ranked.",
+      "description": "How to reduce LLM agent costs in order of return: model routing, prompt caching, bounded history, trimmed tool definitions and batching — with typical recovery percentages and the measurement that stops you trading cost for quality.",
+      "keywords": [
+        "LLM cost reduction",
+        "reduce OpenAI costs",
+        "LLM cost optimisation",
+        "model routing",
+        "prompt caching"
+      ],
+      "outcome": "A materially lower bill, with evidence that quality held.",
+      "symptoms": [
+        "Spend multiplied with no corresponding increase in users",
+        "You cannot say what a single conversation costs",
+        "The provider invoice is the first place you learn about a change",
+        "One frontier model serves every task, including trivial ones",
+        "There is no ceiling that stops a runaway loop over a weekend"
+      ],
+      "why": [
+        "Almost every expensive agent is expensive for structural reasons, not because the model's price is unreasonable. Conversation history resent in full on every turn. Tool definitions billed on every call, used or not. Retries nobody counts. A frontier model doing classification.",
+        "That means the savings are usually large and boring. Across the engagements I have run, 40–70% is a normal recovery, and almost all of it comes from the first three levers below.",
+        "The important discipline is the pairing: every cost change goes through an eval suite. Cost reduction without quality measurement is not optimisation, it is a gamble you have not priced. This is the main reason I push for evals first when both are missing."
+      ],
+      "asset": {
+        "kind": "table",
+        "title": "The levers, in the order I attempt them",
+        "intro": "Ranked by return per day of engineering. Percentages are typical recovery from engagements and public pricing arithmetic, not guarantees — run your own numbers in the calculator.",
+        "columns": ["Lever", "Typical recovery", "Effort", "The catch"],
+        "rows": [
+          ["Route by task difficulty", "40–70%", "3–5 days", "Needs evals per tier, or you are trading quality blind"],
+          ["Cache stable prompt prefixes", "20–40% of input cost", "1–2 days", "Cache writes cost 1.25–2× base; a low hit rate loses money"],
+          ["Bound conversation history", "20–50% on long chats", "2–4 days", "Naive truncation drops your system prompt — re-assert constraints"],
+          ["Trim tool definitions", "8–25% of input cost", "1–2 days", "Vague descriptions cause hallucinated arguments; be shorter, not vaguer"],
+          ["Fix the retry cause", "5–15%", "2–4 days", "Usually unactionable tool errors; fixes latency at the same time"],
+          ["Batch non-urgent work", "50% on eligible traffic", "2–3 days", "Only for work that tolerates delay"],
+          ["Cap tokens per request and per run", "Prevents tail events", "1 day", "Not a saving — an insurance policy against a five-figure weekend"]
+        ],
+        "note": "Do them in this order. Routing first because it is the largest and its measurement infrastructure (per-tier evals) is what makes the rest safe."
+      },
+      "secondAsset": {
+        "kind": "checklist",
+        "title": "Cost attribution tags to add before you optimise",
+        "intro": "You cannot reduce what you cannot attribute. Log these on every call, then chart cost per conversation as a first-class product metric. This is a day of work and it is the prerequisite for everything above.",
+        "items": [
+          "feature — which product surface triggered this call",
+          "tenant / customer — so a single heavy account is visible",
+          "task_type — classification, extraction, generation, routing (this is what tells you what to route)",
+          "model_id — pinned version, to catch silent fallbacks to a pricier model",
+          "tokens_in / tokens_out / cache_read_tokens — separately, per call",
+          "cost_usd — computed at write time, never derived later from aggregates",
+          "retry_count — so retry spend is a line item rather than invisible",
+          "step_index — so per-turn cost growth over a conversation is visible as a curve"
+        ],
+        "note": "Skip this and every optimisation becomes an argument about which change caused the invoice to move."
+      },
+      "method": [
+        {
+          "phase": "Attribute the spend",
+          "detail": "Add the tags above and chart cost per conversation by feature and tenant. Usually reveals one or two surprises within a day.",
+          "effort": "1 day"
+        },
+        {
+          "phase": "Profile a real run",
+          "detail": "Decompose one representative conversation into prompt, history, retrieved context, tool definitions and output. The proportions tell you which lever applies.",
+          "effort": "0.5 day"
+        },
+        {
+          "phase": "Establish the quality baseline",
+          "detail": "An eval suite, or the subset of one, so every subsequent change can be checked. Without this the rest is guesswork.",
+          "effort": "1–3 days if none exists"
+        },
+        {
+          "phase": "Apply levers in order, measuring each",
+          "detail": "One change at a time with an eval run between, so a quality regression is attributable to the change that caused it.",
+          "effort": "3–8 days depending on scope"
+        },
+        {
+          "phase": "Install the ceilings",
+          "detail": "Per-request token caps, per-user daily limits, and a global breaker that degrades to a cheaper model rather than spending without bound.",
+          "effort": "1 day"
+        }
+      ],
+      "deliverables": [
+        "Cost attribution by feature, tenant and task type on a dashboard",
+        "A decomposed cost profile of your real traffic",
+        "Routing implemented with per-tier quality verified by evals",
+        "Caching, history bounds and tool-definition trimming where they pay",
+        "Hard ceilings: per-request, per-user and a tested global circuit breaker",
+        "A written record of what changed, what it saved, and what quality did"
+      ],
+      "relatedFailures": ["cost-spike", "runaway-loop", "latency-tail"],
+      "domains": ["HR analytics", "Recruitment", "Lead generation"],
+      "engagement": "audit",
+      "faq": [
+        {
+          "q": "How much can we realistically cut our LLM costs?",
+          "a": "40–70% is a normal recovery on an agent that has not been optimised, and most of it comes from routing tasks to cheaper models plus caching stable prompt prefixes.\n\nThe honest caveat: that range assumes nobody has done this work yet. If you already route and cache, remaining wins are smaller and come from history bounds and tool-definition trimming."
+        },
+        {
+          "q": "Will using a cheaper model hurt quality?",
+          "a": "For classification, extraction, routing and formatting, usually not measurably — those tasks do not need frontier reasoning. For genuinely hard reasoning, yes.\n\nThe point is that this is a measurable question, not a matter of opinion. Route the task, run your evals on that tier, and read the number. Teams that skip the measurement either overpay everywhere out of caution or degrade quality without noticing."
+        },
+        {
+          "q": "Does prompt caching always save money?",
+          "a": "No. A cache write costs more than ordinary input — 1.25× base for a 5-minute cache and 2× for an hour — while a read costs about 0.1×. It only pays once content is genuinely re-read: after one read for the short tier, two for the long one.\n\nCaching a prefix that is never reused makes it more expensive. Check your actual hit rate before assuming the cache is helping."
+        },
+        {
+          "q": "What is the fastest cost win we can do ourselves this week?",
+          "a": "Add cost attribution tags and chart cost per conversation. It is about a day of work, it saves nothing directly, and it is still the right first move — because it usually surfaces one feature or tenant consuming a disproportionate share.\n\nAfter that, check your tool-definition token count. Teams are routinely surprised by a factor of two or three, and trimming is a day's work."
+        }
+      ]
+    },
+    {
+      "slug": "multi-tenant-ai-isolation",
+      "name": "Multi-tenant AI isolation",
+      "order": 4,
+      "pillar": "reliability",
+      "h1": "Keep tenants apart when a language model is in the request path",
+      "tagline": "A prompt is not an access-control mechanism.",
+      "description": "How to enforce tenant isolation in a multi-tenant AI product: why prompt-based rules fail, the layered defence that works, and the specific checks to run. Drawn from building a multi-tenant analytics agent for 2,000 concurrent users on sensitive HR data.",
+      "keywords": [
+        "multi-tenant LLM",
+        "AI tenant isolation",
+        "LLM data leakage",
+        "RAG multi-tenancy",
+        "AI PII handling"
+      ],
+      "outcome": "Isolation that holds even when the model behaves unexpectedly.",
+      "symptoms": [
+        "Tenant scoping is described in the system prompt",
+        "Retrieval filters by metadata the model can influence",
+        "A tool would happily accept a tenant ID supplied by model output",
+        "You could not prove isolation to a security reviewer without saying \"the prompt says so\"",
+        "Nobody has deliberately tried to make the agent cross the boundary"
+      ],
+      "why": [
+        "I built a conversational analytics platform over HR data — salaries, performance, attrition — serving multiple client organisations. During testing, a question phrased around a department name that existed in two tenants produced valid SQL that resolved that department without a tenant predicate.",
+        "Nothing leaked; it was caught in staging against synthetic data. But the lesson was not \"the model hallucinated\". The model did something reasonable given ambiguous input. The defect was architectural: we had put a security boundary inside a probabilistic system.",
+        "Prompt instructions are advisory. They are useful for producing better first drafts and worthless as enforcement. Everything below moves the boundary out of the prompt and into code that cannot be talked out of it."
+      ],
+      "asset": {
+        "kind": "checklist",
+        "title": "The layered isolation checklist",
+        "intro": "Each layer assumes the ones above it may fail. Work down the list; if you cannot tick a box, that is where your exposure is. This is the design I now use by default.",
+        "items": [
+          "Tenant identity is derived from the authenticated session and never read from model output, user text, or a tool argument",
+          "Retrieval is filtered by a tenant key applied server-side, not by metadata the model can influence or restate",
+          "Generated queries are parsed and rewritten — the tenant predicate is injected by your code, not trusted from the model",
+          "Queries touching tables outside the authorised set are rejected before execution, not filtered afterwards",
+          "Database credentials are per-tenant or row-level-secured, so the connection itself cannot read across tenants",
+          "Every tool re-checks authorisation server-side rather than trusting that the agent was scoped correctly",
+          "Outputs are scanned for identifiers and PII that do not belong to the requesting tenant, and blocks are logged",
+          "Conversation history, caches and embeddings are partitioned per tenant — a shared cache is a cross-tenant channel",
+          "Traces and logs are themselves tenant-scoped, so debugging one customer does not expose another",
+          "Your eval suite contains deliberate cross-tenant attempts, and they are expected to fail"
+        ],
+        "note": "The last item is the one teams skip. If nobody has tried to break isolation on purpose, you do not know whether it holds — you know that nobody has reported it."
+      },
+      "secondAsset": {
+        "kind": "table",
+        "title": "Where isolation actually leaks",
+        "intro": "Ranked by how often I find each one, not by how exotic it sounds.",
+        "columns": ["Leak path", "Why it is missed"],
+        "rows": [
+          ["Tenant scoping lives in the system prompt", "It works in every test, because tests do not include ambiguous cross-tenant phrasing."],
+          ["Shared embedding index with metadata filtering", "Filtering is correct until a query path forgets the filter. One missed call site is a leak."],
+          ["Shared prompt cache across tenants", "Caching is treated as a performance concern, so nobody reviews it as a data boundary."],
+          ["Tool accepts an ID from model output", "The tool looks correct in isolation; the trust boundary is one layer up."],
+          ["Error messages echo requested records", "A \"not found\" that names the record confirms its existence to the wrong tenant."],
+          ["Traces and eval datasets mix tenants", "Isolation is designed for the request path and forgotten for the debugging path."]
+        ],
+        "note": "Five of these six are ordinary engineering mistakes rather than AI-specific ones. That is the point — the model did not cause them, it just made them easier to make."
+      },
+      "method": [
+        {
+          "phase": "Map every path to tenant data",
+          "detail": "Retrieval, tools, caches, history, traces, eval datasets. Anything that touches tenant data is in scope, including the debugging path people forget.",
+          "effort": "1 day"
+        },
+        {
+          "phase": "Move identity out of the prompt",
+          "detail": "Tenant identity resolved from the session, passed out-of-band, and never accepted from model output anywhere.",
+          "effort": "1–2 days"
+        },
+        {
+          "phase": "Add the enforcement layer",
+          "detail": "Query parsing and predicate injection, server-side authorisation re-checks in tools, and scoped credentials so the connection cannot cross tenants.",
+          "effort": "2–4 days"
+        },
+        {
+          "phase": "Partition the incidental surfaces",
+          "detail": "Caches, embeddings, conversation history, traces. These are the ones that leak after the request path has been secured.",
+          "effort": "1–2 days"
+        },
+        {
+          "phase": "Prove it with adversarial evals",
+          "detail": "Deliberate cross-tenant attempts as permanent test cases that must fail. This is what you show a security reviewer.",
+          "effort": "1 day"
+        }
+      ],
+      "deliverables": [
+        "A map of every path that touches tenant data, including caches and traces",
+        "Tenant identity resolved from session and enforced outside the model",
+        "An enforcement layer: query rewriting, server-side authorisation, scoped credentials",
+        "Partitioned caches, embeddings, history and traces",
+        "Adversarial cross-tenant eval cases that must fail, as evidence for review",
+        "A short written design you can hand to a security reviewer or customer"
+      ],
+      "relatedFailures": ["tool-arg-hallucination", "retrieval-miss", "works-in-dev"],
+      "domains": ["HR technology", "Recruitment", "Legal / contracts"],
+      "engagement": "audit",
+      "faq": [
+        {
+          "q": "Can we enforce tenant isolation in the system prompt?",
+          "a": "No. Prompt instructions are advisory — they influence output, they do not constrain it. One ambiguous input or one injection attempt and the instruction is simply not followed.\n\nUse the prompt to get better first drafts, and enforce the boundary in code: session-derived identity, server-side filtering, query rewriting, and scoped database credentials."
+        },
+        {
+          "q": "Is one shared vector index safe for multiple tenants?",
+          "a": "It can be, if the tenant filter is applied server-side on every single query path and no call site can omit it. In practice that discipline is hard to maintain as code grows, and one missed path is a leak.\n\nSeparate indexes or namespaces per tenant cost more and remove an entire class of mistake. For sensitive data I default to partitioning and treat shared-index-with-filtering as the optimisation you justify later."
+        },
+        {
+          "q": "Does prompt caching create a cross-tenant risk?",
+          "a": "It can, and it is one of the most commonly missed paths, because caching gets reviewed as a performance feature rather than a data boundary.\n\nCache stable, tenant-independent content — system prompts, tool definitions. Never cache prefixes containing one tenant's retrieved data in a way another tenant's request could hit. Partition cache keys by tenant explicitly."
+        },
+        {
+          "q": "How do we prove isolation to a customer or auditor?",
+          "a": "Show them enforcement in code plus adversarial tests that fail. A written design describing session-derived identity, query rewriting, and per-tenant credentials, alongside an eval suite containing deliberate cross-tenant attempts with recorded results.\n\n\"The prompt instructs the model not to\" does not survive review, and reasonably so."
+        }
+      ]
+    },
+    {
+      "slug": "text-to-sql-reliability",
+      "name": "Text-to-SQL reliability",
+      "order": 5,
+      "pillar": "reliability",
+      "h1": "Natural-language analytics people will actually trust",
+      "tagline": "The hard part is not generating SQL. It is knowing when not to run it.",
+      "description": "How to make a text-to-SQL agent trustworthy in production: schema retrieval measured separately, a query gate that validates before execution, and accuracy measurement that reflects real questions. From building conversational analytics for 2,000 concurrent users.",
+      "keywords": [
+        "text-to-SQL",
+        "natural language to SQL",
+        "conversational analytics",
+        "LLM SQL generation",
+        "text-to-SQL accuracy"
+      ],
+      "outcome": "Answers users trust, because every number traces back to a query they can inspect.",
+      "symptoms": [
+        "It answers confidently and is sometimes quietly wrong",
+        "Nobody can tell whether a wrong answer came from retrieval or generation",
+        "The whole schema is pasted into the prompt",
+        "Generated SQL runs directly against the database",
+        "Users have started checking every number by hand, which defeats the point"
+      ],
+      "why": [
+        "I built one of these over HR data: descriptive reporting, diagnostic questions, and predictive workforce analytics, serving 2,000 concurrent users across isolated tenants. It took reporting turnaround from two to three days down to under 30 seconds.",
+        "Generating plausible SQL is the easy part and current models are good at it. The engineering is everywhere else: retrieving the right slice of schema, refusing questions the data cannot answer, blocking queries that should never execute, and making the result auditable enough that a sceptical analyst stops double-checking it.",
+        "The single most important thing we shipped was showing the executed SQL behind a disclosure. It made stakeholders nervous and it is why the system earned trust — analysts checked it, found it correct, and stopped checking."
+      ],
+      "asset": {
+        "kind": "checklist",
+        "title": "The query gate — what runs between generation and execution",
+        "intro": "Never send model output straight to a database. Each of these checks is cheap, and together they are the reason the system was allowed near real data.",
+        "items": [
+          "Parse the generated SQL into an AST — reject anything that does not parse rather than passing the string through",
+          "Allowlist statement types: SELECT only. No DDL, no DML, no multi-statement, no comments carrying a second statement",
+          "Verify every referenced table and column exists and is within the authorised set for this user",
+          "Inject the tenant and row-level predicates yourself; never trust the model to have included them",
+          "Bound the query: statement timeout, row cap, and rejection of unbounded cross joins",
+          "Execute as a read-only role scoped to the tenant, so the credentials cannot do damage even if the gate is bypassed",
+          "Cap and paginate results rather than raising the row limit; route genuinely large exports to an async job",
+          "Return the executed SQL alongside the answer, available for inspection",
+          "Log rejected queries with the reason — rejection rate by cause is your best quality signal",
+          "Treat \"I could not answer that from this data\" as a valid, expected outcome rather than a failure to eliminate"
+        ],
+        "note": "The gate rejects some legitimate queries. That is an acceptable cost, and it is cheaper than one confidently wrong number reaching a board deck."
+      },
+      "secondAsset": {
+        "kind": "table",
+        "title": "Where wrong answers actually come from",
+        "intro": "Teams debug generation prompts when the defect is usually upstream. Measure these stages separately or you will tune the wrong one — a mistake I made before learning to instrument the stages independently.",
+        "columns": ["Stage", "Failure", "How to measure it"],
+        "rows": [
+          ["Schema retrieval", "The relevant table was never retrieved, so the model answered from the wrong one", "recall@k against labelled question→table pairs"],
+          ["Column semantics", "Column name looks right, means something else — `status` vs `employment_status`", "Human-written column notes in the retrieved context; check they exist"],
+          ["Join logic", "Correct tables, wrong relationship, plausible number", "Labelled expected result sets, not expected SQL strings"],
+          ["Aggregation & filters", "Wrong grain, or a filter silently dropped", "Compare result values against known-good answers"],
+          ["Question scope", "The data cannot answer it and the agent answered anyway", "A refusal set: questions it must decline"],
+          ["Grounding", "Answer text does not match what the query returned", "Assert the narrative numbers equal the query output"]
+        ],
+        "note": "Match on result sets, not SQL text. Many different queries produce the same correct answer, and grading SQL strings punishes correct work."
+      },
+      "method": [
+        {
+          "phase": "Instrument the stages",
+          "detail": "Separate retrieval, generation, execution and narration so a wrong answer can be attributed to a stage instead of debated.",
+          "effort": "1 day"
+        },
+        {
+          "phase": "Fix schema retrieval first",
+          "detail": "Retrieve a relevant subset with human-written column semantics rather than pasting the whole schema. Measure recall@k against labelled pairs.",
+          "effort": "2–3 days"
+        },
+        {
+          "phase": "Build the query gate",
+          "detail": "AST parsing, allowlisting, predicate injection, bounds, and a read-only scoped role. The checklist above, implemented.",
+          "effort": "2–4 days"
+        },
+        {
+          "phase": "Add refusal and grounding",
+          "detail": "Decline what the data cannot answer, and assert that narrated numbers match the query output.",
+          "effort": "1–2 days"
+        },
+        {
+          "phase": "Measure accuracy on real questions",
+          "detail": "An eval set of real user questions with known-good result sets, including ones that must be refused.",
+          "effort": "2 days"
+        }
+      ],
+      "deliverables": [
+        "Stage-separated instrumentation so wrong answers are attributable",
+        "Schema retrieval with column semantics and measured recall@k",
+        "A query gate: AST validation, allowlisting, predicate injection, bounded execution",
+        "Refusal behaviour for out-of-scope questions, and grounding assertions on narration",
+        "An accuracy eval set built from real questions, matched on result sets",
+        "Executed SQL surfaced to users, which is what actually earns trust"
+      ],
+      "relatedFailures": ["retrieval-miss", "works-in-dev", "tool-arg-hallucination"],
+      "domains": ["HR analytics", "Recruitment", "Enterprise reporting"],
+      "engagement": "audit",
+      "faq": [
+        {
+          "q": "How accurate can a text-to-SQL system realistically be?",
+          "a": "Accuracy depends far more on schema quality and question scope than on the model. A clean warehouse with documented column semantics and a bounded question domain performs well; a sprawling legacy schema with ambiguous column names performs badly with any model.\n\nWhich is why the useful metric is not a benchmark score but accuracy on your real questions, measured on result sets. Improve the schema documentation and retrieval before changing models."
+        },
+        {
+          "q": "Should we let generated SQL run directly against the database?",
+          "a": "No. Parse it, allowlist SELECT-only, verify tables and columns against the authorised set, inject the tenant predicate yourself, bound it with a timeout and row cap, and execute as a read-only scoped role.\n\nThat is roughly two weeks of work and it is the reason a text-to-SQL system can be allowed near real business data at all."
+        },
+        {
+          "q": "Should we paste the whole schema into the prompt?",
+          "a": "Only if it is small. Beyond a few dozen tables it wastes tokens on every call and measurably degrades table selection — more options, worse choices.\n\nRetrieve a relevant subset per question, and include human-written notes on what columns actually mean. Those notes usually improve accuracy more than any prompt engineering, because the ambiguity is in the schema rather than the phrasing."
+        },
+        {
+          "q": "Should users see the generated SQL?",
+          "a": "Yes. It is the single highest-trust feature you can ship, and it makes stakeholders nervous for about a week.\n\nAnalysts inspect it, find it correct, and stop inspecting. Without it, every number is unverifiable and cautious users keep checking by hand — which removes the entire benefit of the system."
+        }
+      ]
+    }
+  ]
+}

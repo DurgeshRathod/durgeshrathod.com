@@ -1,0 +1,63 @@
+---
+interface Props {
+  /** Small uppercase label above the heading. */
+  eyebrow?: string;
+  heading?: string;
+  /** Heading level — keep one h1 per page and never skip a level. */
+  as?: 'h1' | 'h2' | 'h3';
+  lede?: string;
+  id?: string;
+  /** Tighter vertical rhythm for stacked sections. */
+  tight?: boolean;
+  bordered?: boolean;
+  class?: string;
+}
+
+const {
+  eyebrow,
+  heading,
+  as = 'h2',
+  lede,
+  id,
+  tight = false,
+  bordered = false,
+  class: cls = '',
+} = Astro.props;
+
+const Heading = as;
+const headingClass =
+  as === 'h1' ? 'text-h1 font-semibold' : as === 'h2' ? 'text-h2 font-semibold' : 'text-h3 font-semibold';
+---
+
+<section
+  id={id}
+  class:list={[tight ? 'py-12' : 'py-16 sm:py-20', bordered && 'border-t', cls]}
+>
+  <div class="container-page">
+    {
+      (eyebrow || heading || lede) && (
+        <header class="max-w-2xl" data-reveal>
+          {eyebrow && (
+            <p
+              class="text-xs font-semibold uppercase tracking-[0.14em]"
+              style="color: var(--accent);"
+            >
+              {eyebrow}
+            </p>
+          )}
+          {heading && (
+            <Heading class:list={[headingClass, eyebrow && 'mt-3']} style="text-wrap: balance;">
+              {heading}
+            </Heading>
+          )}
+          {lede && (
+            <p class="text-lead mt-4" style="color: var(--fg-muted);">
+              {lede}
+            </p>
+          )}
+        </header>
+      )
+    }
+    <slot />
+  </div>
+</section>
