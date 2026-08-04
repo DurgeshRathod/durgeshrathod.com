@@ -45,16 +45,35 @@ const { compact = false, avatar = false } = Astro.props;
         </picture>
       )
     }
-    <div class="flex items-center gap-2">
-      <span class="relative grid size-2.5 place-items-center" aria-hidden="true">
-        <span
-          class="absolute size-2.5 animate-ping rounded-full opacity-60"
-          style="background: var(--good);"></span>
-        <span class="size-2 rounded-full" style="background: var(--good);"></span>
-      </span>
-      <span class="text-xs font-semibold uppercase tracking-wider" style="color: var(--good);">
-        Available for new work
-      </span>
+    <div class="min-w-0">
+      {
+        /*
+          The name is plain text, not a link. An underlined name looked clickable to me and
+          not to anyone else — the destination is unguessable from a person's name, so the
+          affordance was doing no work. The explicit button at the foot of the card carries
+          the link instead; this just puts the name in the hero, which the page otherwise
+          only had in the <title>.
+        */
+        avatar && (
+          <span
+            class="block truncate text-[15px] font-semibold tracking-tight"
+            style="color: var(--fg);"
+          >
+            {SITE.name}
+          </span>
+        )
+      }
+      <div class:list={['flex items-center gap-2', avatar && 'mt-0.5']}>
+        <span class="relative grid size-2.5 place-items-center" aria-hidden="true">
+          <span
+            class="absolute size-2.5 animate-ping rounded-full opacity-60"
+            style="background: var(--good);"></span>
+          <span class="size-2 rounded-full" style="background: var(--good);"></span>
+        </span>
+        <span class="text-xs font-semibold uppercase tracking-wider" style="color: var(--good);">
+          Available for new work
+        </span>
+      </div>
     </div>
   </div>
 
@@ -78,6 +97,29 @@ const { compact = false, avatar = false } = Astro.props;
     I hold afternoons and evenings IST open for calls, which covers European mornings and
     US mornings on the earlier side. Async-first either way.
   </p>
+
+  {
+    /*
+      The homepage's only other route to /about is a proof-stat tile reading "9+ years
+      shipping" — a number, which nobody clicks looking for a bio. This is a bordered pill
+      matching the secondary-action style used in CtaRow, because a card needs an
+      unmistakable control rather than an underline.
+
+      Gated on `avatar`, which is the homepage hero and nothing else: this card also renders
+      on /about, /contact, /work-with-me and in every page footer, and /about must not link
+      to itself.
+    */
+    avatar && (
+      <a
+        href={href('/about')}
+        class="mt-4 inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-[13px] font-semibold transition-colors"
+        style="border-color: var(--border-strong); color: var(--fg);"
+      >
+        About me and how I work
+        <span aria-hidden="true">→</span>
+      </a>
+    )
+  }
 </div>
 
 <script is:inline>
