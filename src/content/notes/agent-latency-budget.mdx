@@ -1,0 +1,92 @@
+---
+title: 'Agent latency is a serial-hop problem, not a token problem'
+description: 'Teams optimise tokens and wonder why p95 barely moves. An agent request is a chain of round trips, and the tail is dominated by how many hops happen in sequence — plus the retries you cannot see in an average.'
+published: '2026-08-04'
+readingMinutes: 8
+keywords:
+  - AI agent latency optimization
+  - LLM latency p95
+  - reduce agent response time
+  - agent performance tuning
+  - streaming LLM latency
+faq:
+  - q: 'Why is my AI agent slow even after I reduced the prompt size?'
+    a: 'Because the dominant term is usually the number of sequential round trips, not the size of each one. An agent that thinks, calls a tool, reads the result and thinks again pays full model latency on each hop, and those add up in series.\n\nCutting tokens reduces each hop a little. Cutting hops — by attaching fewer tools, letting independent tool calls run in parallel, or handling easy requests in a single pass — reduces the total directly. Count your hops per request before optimising anything else.'
+  - q: 'Why is p95 latency so much worse than p50 for AI agents?'
+    a: 'Because the tail is a different code path, not a slower version of the same one. A p50 request might do three hops; a p95 request did seven, or hit a tool timeout and retried, or was rate-limited and backed off.\n\nThat means averages hide the problem completely. Track the distribution of hops per request alongside latency — if hop count has a long tail, latency will too, and no amount of per-call tuning will fix it.'
+  - q: 'Does streaming make an agent faster?'
+    a: 'It does not reduce total time, and it substantially improves the experience, because time-to-first-token is what users perceive as responsiveness.\n\nThe caveat specific to agents: you often cannot stream the useful part. If the model is deciding which tool to call, there is nothing meaningful to show until the tool returns. Stream the final composition step, and show explicit progress for the tool-calling phase rather than a spinner.'
+---
+
+A team tells me their agent is slow, and the work they have already done is almost always prompt trimming. Shorter system prompt, fewer few-shot examples, tighter instructions. Then p95 moves by a few percent and nobody knows why.
+
+The reason is structural. Latency for an agent is roughly:
+
+**hops × (queue + prompt processing + generation) + tool time + retries**
+
+Prompt trimming attacks one term inside the parentheses. Hop count multiplies the whole thing.
+
+## Count your hops first
+
+Before optimising anything, get the distribution of model calls per request. Not the average — the distribution. What I usually find is something like:
+
+| Percentile | Hops | What is happening |
+| --- | --- | --- |
+| p50 | 3 | Think, call one tool, answer |
+| p75 | 5 | An extra lookup, or one reformulated query |
+| p95 | 9 | Retries, a tool that errored, a search that did not converge |
+| p99 | 20+ | A loop that is only stopping because you bounded it |
+
+If your distribution looks like this, per-call optimisation cannot help you much, because your tail is not a slow version of your median — it is a different execution. That is why averages are actively misleading here, and why hop count belongs in your [tracing spec](/solutions/llm-observability) as a first-class field.
+
+## The four things that actually reduce hops
+
+**Attach fewer tools.** Every additional tool is another candidate for the model to try, and a wrong first choice costs a full round trip to discover. Five well-named tools with unambiguous descriptions produce shorter chains than fifteen overlapping ones. This is the same argument as the [token cost of tool definitions](/notes/tool-definition-token-cost) arriving at the same conclusion from the latency side.
+
+**Parallelise independent calls.** If the agent needs the customer record and the order history and neither depends on the other, those should be one round trip with two tool calls, not two round trips. Most current models support parallel tool calls; a lot of code written against them still dispatches serially because the loop was written one-call-at-a-time. This is often the single largest easy win.
+
+**Short-circuit the easy majority.** A large share of requests need no tools at all — a greeting, a question answerable from the system prompt, a clarification. Classify cheaply up front and answer those in one call. Same principle as [routing by difficulty](/notes/model-routing), applied to control flow rather than model choice.
+
+**Precompute what you can.** If the agent almost always begins by fetching the user's profile, fetch it before the first model call and put it in the prompt. A hop you removed is worth more than a hop you made faster.
+
+## Then the per-hop terms
+
+Once hop count is under control, the inside of the parentheses is worth attention.
+
+**Prompt caching cuts prompt processing, not generation.** A cached prefix is re-read rather than reprocessed, which reduces time-to-first-token meaningfully on long system prompts. It does nothing for output speed. Worth doing, and worth understanding precisely what it does — including that a [cache write costs more than no cache](/notes/prompt-caching-vs-semantic-caching), so a poor hit rate makes things worse on both cost and latency.
+
+**Output length is the generation term.** Tokens are produced sequentially, so a 600-token answer takes roughly six times as long to generate as a 100-token answer. Asking for concise output is a latency optimisation, not just a cost one — and for intermediate reasoning steps that no human reads, it is free.
+
+**Model choice trades quality for speed.** Smaller models are faster per token and faster to first token. Using a small model for routing and classification, and a large one only for the final answer, cuts latency where it does not cost you quality.
+
+## The retry term is the one nobody measures
+
+Retries hide inside your latency numbers and outside your mental model. A tool that times out at 30 seconds and is retried twice has added a minute before the model has done anything wrong. A rate-limit response with exponential backoff can add tens of seconds silently.
+
+Three things to check:
+
+- **Are your tool timeouts shorter than your user's patience?** A 30-second default on a call that normally takes 200ms means one hung dependency consumes your entire latency budget.
+- **Are retries bounded and logged as retries?** If a retry looks like a normal call in your traces, your hop count is wrong and your p95 is unexplainable.
+- **Is backoff jittered?** Without jitter, concurrent requests retry in lockstep and re-trigger the same rate limit.
+
+None of this is specific to agents. It is ordinary distributed-systems discipline, which is exactly the point — an agent is a distributed system with an unusually slow, unusually expensive remote call in the middle of it. The [520-million-parameter ingestion work](/work/telecom-throughput) taught me the same lessons in a context with no models in it at all.
+
+## What to tell users while they wait
+
+Agents are slow enough that the interface has to participate. Total time will often be several seconds, and sometimes tens.
+
+**Stream the final composition.** Time-to-first-token is what people experience as speed.
+
+**Show the tool phase explicitly.** "Looking up your order" beats a spinner, and it is honest. During tool calling there is genuinely nothing to stream, so say what is happening instead of implying imminent output.
+
+**Set a visible ceiling.** If a request will take more than about ten seconds, say so up front. Users tolerate a slow operation they were warned about far better than a fast one that felt stuck.
+
+## A short diagnostic
+
+1. Plot hops per request at p50, p95 and p99. A long tail here explains a long latency tail and nothing else will fix it.
+2. Check whether independent tool calls run in parallel. Frequently they do not.
+3. Count what fraction of requests need no tools. Route those to a single call.
+4. Check tool timeouts against your latency budget, and confirm retries appear as retries in traces.
+5. Only then trim prompts.
+
+Most teams do step 5 first, which is why the numbers do not move.

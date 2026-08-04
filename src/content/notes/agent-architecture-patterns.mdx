@@ -1,0 +1,98 @@
+---
+title: 'Pick the least agentic architecture that solves your problem'
+description: 'Almost every production agent is one of four shapes, and they are ordered by how much autonomy you give away. Most teams start at the wrong end of that list, because the interesting end is also the expensive one.'
+published: '2026-08-04'
+readingMinutes: 8
+keywords:
+  - AI agent architecture best practices
+  - agent architecture patterns
+  - AI orchestration platform
+  - multi-agent vs single agent
+  - agentic workflow design
+faq:
+  - q: 'What is the best architecture for an AI agent?'
+    a: 'The least autonomous one that solves your problem. In practice that is usually a deterministic workflow with model calls at specific steps, not an agent deciding its own control flow.\n\nThe four common shapes, in order of increasing autonomy, are: a fixed pipeline with model calls inside it, a single agent with tools, a supervisor directing specialist workers, and fully autonomous multi-agent collaboration. Each step down that list buys flexibility and costs you predictability, debuggability and money. Start at the top and move down only when a specific requirement forces it.'
+  - q: 'When do I actually need a multi-agent system?'
+    a: 'When the sub-tasks need genuinely different tools or permissions, or when their context windows would otherwise collide — for example a research step that fills the window with retrieved documents alongside a writing step that needs a clean context.\n\nNot because the problem sounds complicated. Multi-agent systems multiply the number of model calls, make cost harder to predict, and turn a stack trace into a conversation transcript. Ask whether one agent with more tools would do, and only split when the answer is a concrete no.'
+  - q: 'Do I need an orchestration framework?'
+    a: 'Not for a first production agent. A while-loop, a tool dispatch table and a state object cover the single-agent-with-tools shape in a few hundred lines you fully understand.\n\nFrameworks earn their place once you need durable execution across process restarts, human-in-the-loop pauses that survive a deploy, or fan-out across many workers. Those are real problems worth a dependency — but adopt the framework when you hit them, not in anticipation.'
+---
+
+Ask what architecture an agent should have and you get a diagram with six boxes and a router. Nearly every production system I have looked at is actually one of four shapes, and the useful thing about them is that they form an ordered list.
+
+The order is how much control you hand to the model. Each step down buys flexibility and charges you in predictability, cost and debuggability.
+
+## The four shapes
+
+| Shape | Model decides | You decide | Typical cost per request |
+| --- | --- | --- | --- |
+| Pipeline with model steps | What to output at each step | The whole control flow | 1–2 calls |
+| Single agent with tools | Which tool, which arguments, when to stop | Which tools exist, what bounds apply | 3–15 calls |
+| Supervisor and workers | Which worker, in what order | The set of workers, their tools | 10–40 calls |
+| Autonomous collaboration | Almost everything | Very little | Unbounded until you bound it |
+
+The last row is where demos live and where budgets die. It is also the row where "why did it do that" stops having a short answer.
+
+## Start with a pipeline, and notice how often it is enough
+
+A surprising share of what gets called an agent is a sequence of known steps: classify, then retrieve, then extract, then validate, then write. If you know the steps, encode the steps. The model does the parts that need language understanding, and your code does the control flow.
+
+This is not a compromise. A pipeline is testable with ordinary unit tests, its cost is a constant you can put in a spreadsheet, its latency is predictable, and when it breaks you get a stack trace pointing at a line number. You give up the ability to handle requests whose shape you did not anticipate — which matters only if such requests actually arrive.
+
+The honest test: look at a hundred real requests and count how many needed a step order you had not thought of. If the answer is two, build the pipeline and route those two to a human.
+
+## Single agent with tools is the workhorse
+
+When the order genuinely varies — the agent must look something up before it knows whether it needs to look something else up — you need a loop where the model chooses. This is the shape most production agents should be, and it covers far more ground than teams expect.
+
+Three things make the difference between one that works and one that does not, and none of them are about the prompt:
+
+**Attach few tools.** Every tool schema is sent on every call, so twelve tools is a fixed tax on every turn plus twelve chances to pick wrong. I have written about [what that costs in tokens](/notes/tool-definition-token-cost); the reliability argument is the same shape. Five well-named tools beat fifteen overlapping ones.
+
+**Bound the loop.** A maximum iteration count, a token ceiling per request, and a wall-clock timeout. Not as a safety net — as a design constraint. An unbounded loop is the single most expensive failure mode in production, and it is [top of the failure taxonomy](/tools/ai-agent-failure-modes) for a reason.
+
+**Validate every tool call.** Treat the model's chosen arguments as untrusted input, because that is what they are. Reject rather than coerce.
+
+## Supervisor and workers, when contexts collide
+
+The legitimate reason to split into multiple agents is rarely "the problem is complex." It is usually one of two concrete constraints.
+
+The first is context contention. A research step that pulls in twenty documents fills its window with material the writing step does not need and will be distracted by. Separate agents mean separate windows, and the supervisor passes a summary rather than the raw material. This is a real architectural win, and it is the same reasoning as [budgeting your context window deliberately](/notes/context-window-budget).
+
+The second is permissions. If one sub-task needs write access to a system and another does not, separate agents with separate credentials is a genuine boundary rather than a stylistic choice. That is worth doing for the same reason you would not give one service account every permission.
+
+What is not a good reason: it makes the diagram look sophisticated. I have taken apart a [multi-agent system that was spiralling](/work/multi-agent-orchestration) and the fix was fewer agents, not better prompts.
+
+## Autonomous collaboration: know what you are signing up for
+
+Agents that negotiate among themselves, spawn sub-agents, and decide when the work is done are genuinely capable and genuinely hard to operate. Three specific problems, all of which you must solve rather than hope about:
+
+**Termination.** Something must guarantee the system stops. Not "usually stops" — a hard bound on total calls, total spend, and total time, enforced outside the agents.
+
+**Cost variance.** Two structurally similar requests can differ by an order of magnitude in cost. If you bill customers per request, you now have a margin problem that looks like an engineering problem.
+
+**Attribution.** When the output is wrong, which agent was wrong? Without tracing that spans the whole run you are reading transcripts and guessing. This is the [observability](/solutions/llm-observability) requirement that goes from useful to mandatory at this shape.
+
+## The framework question
+
+You do not need an orchestration framework for a first production agent. A while-loop, a dispatch table mapping tool names to functions, and a state object will implement the single-agent shape in a few hundred lines you can read in one sitting. That is a real advantage when something goes wrong at 2am.
+
+Frameworks earn a place when you hit problems they exist to solve:
+
+- **Durable execution** — the run must survive a process restart or a deploy.
+- **Human pauses** — the run stops for approval and resumes hours later, which is a persistence problem, not a prompt problem.
+- **Fan-out** — many parallel workers with results collected reliably.
+- **Replay** — re-running a historical execution against a new prompt version.
+
+Those are genuine engineering problems and a good framework saves you months. The mistake is adopting one in anticipation, then discovering that its abstractions constrain you in a direction you did not want and its control flow is now the thing you are debugging.
+
+## How to choose, quickly
+
+Work down this list and stop at the first yes:
+
+1. **Do I know the steps in advance?** → Pipeline with model calls.
+2. **Does the order genuinely depend on what it finds?** → Single agent with tools, bounded.
+3. **Do sub-tasks need different permissions, or would their contexts collide?** → Supervisor and workers.
+4. **Do I have a requirement that genuinely needs agents deciding when the work is done?** → Autonomous, with hard termination bounds and full tracing.
+
+Most teams should stop at 1 or 2 and would ship sooner if they did. If you are unsure which row you are on, the [scorecard](/scorecard) asks the twelve questions that usually settle it.

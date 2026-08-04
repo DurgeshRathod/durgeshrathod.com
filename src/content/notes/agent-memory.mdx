@@ -1,0 +1,89 @@
+---
+title: 'Agent memory is four different problems wearing one word'
+description: 'Conversation history, running state, retrieved knowledge and learned preferences get called memory interchangeably. They have different storage, different lifetimes and different failure modes — and the fourth one is where agents start confidently repeating things that stopped being true.'
+published: '2026-08-04'
+readingMinutes: 8
+keywords:
+  - long-term memory for AI agents
+  - agent memory architecture
+  - conversation history LLM
+  - agent state management
+  - vector memory
+faq:
+  - q: 'How do you give an AI agent long-term memory?'
+    a: 'First decide which of four things you mean, because they need different implementations: verbatim conversation history, compacted running state for the current task, retrieved knowledge from a corpus, or durable facts learned about a user.\n\nOnly the fourth is what people usually mean by long-term memory, and it is the one with real risks — a fact written once and never revalidated becomes an agent confidently repeating something that stopped being true. Store those facts with a source, a timestamp and a confidence, and make them correctable.'
+  - q: 'Should I store agent memory in a vector database?'
+    a: 'For retrieved knowledge, yes — that is what they are for. For durable facts about a user, usually no.\n\nFacts like a preferred name, a plan tier or a shipping address are structured data with a schema, and they belong in a normal database where they can be read exactly, updated atomically and audited. Storing them as embeddings means retrieving them by similarity, which introduces a failure mode you do not need for data you could have looked up by key.'
+  - q: 'Why does my agent keep repeating outdated information?'
+    a: 'Because something wrote a fact into memory and nothing ever revalidated it. Memory systems are usually append-only by default, so a preference stated once in March is still being asserted in November.\n\nFixes: store a timestamp and source with every remembered fact, expire or re-confirm anything time-sensitive, prefer the live system of record over remembered values for anything that can change, and give users a way to see and correct what has been remembered about them.'
+---
+
+"Add memory to the agent" is a sentence that hides four unrelated engineering problems. They have different storage, different lifetimes, different costs and completely different ways of going wrong. Teams that treat them as one thing usually end up with a vector database holding a user's phone number, retrieved by cosine similarity.
+
+## The four things
+
+| What | Lifetime | Where it belongs | Main failure |
+| --- | --- | --- | --- |
+| Conversation history | This conversation | The request, verbatim | Fills the context window, cost grows per turn |
+| Running task state | This task | A structured object you control | Compaction loses the detail that mattered |
+| Retrieved knowledge | As long as the corpus | Search index or vector store | Wrong material retrieved |
+| Learned facts about a user | Indefinite | A normal database, with provenance | Stale facts asserted confidently |
+
+Only the last row is what people mean by long-term memory, and it is the only one where "memory" is a good word for it.
+
+## Conversation history is a cost problem, not a memory problem
+
+Every turn resends the conversation. That means cost grows roughly quadratically over a long session — turn twenty pays for turns one through nineteen again — and eventually you hit the window limit.
+
+There is no clever solution, only a choice about what to drop. Keep the last N turns verbatim, summarise what falls off, and accept that the summary loses detail. What matters is being deliberate about it: know your per-turn token growth, and know at which turn count your costs stop being acceptable. That is arithmetic you can do in advance, and the [cost calculator](/tools/agent-cost-calculator) will do it for you.
+
+The trap is summarising with the same model mid-conversation and treating the summary as equivalent to the original. It is not. It is a lossy compression chosen by a system that does not know which detail you will need in ten turns.
+
+## Running task state should be a struct, not prose
+
+While an agent works through a task, it accumulates things it has learned: the order ID it found, the three candidate records, the fact that the second tool call failed. The instinct is to leave all of it in the conversation as text and let the model keep track.
+
+Better: maintain an explicit state object in your code, and inject only the relevant parts into each prompt. Not because the model cannot follow the transcript, but because you cannot. When something goes wrong, a state object at the moment of failure is a debuggable artefact. A twelve-thousand-token transcript is an afternoon.
+
+This is also what makes durable execution possible — an agent whose state is a struct can be checkpointed, resumed after a deploy, and paused for [human approval](/for-leaders/human-approval-workflows) without losing its place. An agent whose state is a transcript cannot.
+
+## Retrieved knowledge is retrieval, and it is already well understood
+
+This is the row where a vector store is correct, and it is not really memory: it is a search index over documents that existed before the conversation started. Everything about [how retrieval fails](/notes/rag-vs-agents) applies unchanged, including the part where semantic similarity is not relevance.
+
+Worth separating explicitly, because bundling it with the other three is how systems end up searching one index for both "our refund policy document" and "this user's preferred name."
+
+## Learned facts are the interesting problem, and the risky one
+
+An agent notices something about a user — they prefer metric units, they are on the enterprise plan, their name is spelled a particular way — and stores it so future conversations start informed. This is what makes an assistant feel like it knows you, and it is genuinely valuable.
+
+It is also the row where I see real damage, for one reason: **memory systems are append-only by default, and facts expire.**
+
+A user says in March that they are evaluating the product. In November the agent still opens with advice for someone who is evaluating. Someone mentions a job title that has since changed. A preference stated once, in a specific context, becomes a permanent characteristic. None of this looks like a bug in a log file; it looks like an agent being confidently wrong about a person, which is worse than an agent knowing nothing.
+
+Four things prevent it, and they are all boring:
+
+**Store provenance with every fact.** What was remembered, from which conversation, at what time, and how it was inferred. A remembered fact without a source cannot be audited, corrected or expired — and if the user ever asks why the agent believes something, you have no answer.
+
+**Give facts a shelf life.** Not everything expires, but plenty does. A plan tier, a job role, a current project, an intention — all time-sensitive. Either expire them or re-confirm them.
+
+**Prefer the system of record over memory.** If the plan tier is in your database, read the database. Remembering it means maintaining a second copy that can drift, for no benefit. Reserve memory for things that genuinely have no system of record — preferences, communication style, stated goals.
+
+**Make it visible and correctable.** Users should be able to see what has been remembered and delete it. This is a good product decision, it is a probable requirement under data-protection law given the [audit expectations on automated decisions](/for-leaders/ai-agent-governance-and-audit-logs), and it is the cheapest possible mechanism for finding out that your memory extraction is wrong.
+
+## Do not store learned facts as embeddings
+
+The common design is to write remembered facts into a vector store and retrieve them by similarity. It is a mistake for structured data.
+
+A user's plan tier is a field. It has one correct value, it should be read exactly, updated atomically, and audited. Embedding it means retrieving it by approximate similarity, which introduces a way to get it wrong that a key lookup simply does not have. It also makes contradictions invisible: write "prefers email" in March and "prefers Slack" in June, and a similarity search may return either, or both, with no signal that they conflict.
+
+Structured facts go in a table with a schema. Reserve the vector store for genuinely unstructured recollections where approximate retrieval is what you want.
+
+## A workable default
+
+- **History:** last N turns verbatim, summarise the overflow, know your per-turn growth.
+- **Task state:** an explicit struct in your code, checkpointable, injected selectively.
+- **Knowledge:** a search index, permission-filtered before the query runs.
+- **Learned facts:** a table with value, source, timestamp and confidence — user-visible, user-correctable, and never preferred over a live system of record.
+
+If your current design has one vector store doing all four, that is the thing to fix, and splitting it is usually a smaller job than it looks.

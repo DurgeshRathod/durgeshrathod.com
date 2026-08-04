@@ -1,0 +1,88 @@
+---
+title: 'RAG is not an alternative to agents'
+description: 'They get compared as if you had to choose. RAG is a retrieval technique; an agent is a control-flow pattern. The real decision is whether retrieval happens once before the model runs, or repeatedly because the model asked.'
+published: '2026-08-04'
+readingMinutes: 7
+keywords:
+  - RAG vs AI agents
+  - agentic RAG
+  - retrieval augmented generation
+  - when to use RAG
+  - agentic retrieval
+faq:
+  - q: 'What is the difference between RAG and an AI agent?'
+    a: 'They are not the same category. RAG is a retrieval technique — fetch relevant text and put it in the prompt. An agent is a control-flow pattern — the model decides which actions to take and when to stop.\n\nMost agents use retrieval, so the comparison is misleading. The real distinction is whether retrieval happens once, deterministically, before the model runs, or repeatedly because the model decided it needed to look something else up.'
+  - q: 'Should I use RAG or an agent for a question-answering product?'
+    a: 'Start with plain single-shot RAG. It is cheaper, faster, easier to evaluate, and it answers most questions people actually ask.\n\nMove to agentic retrieval only when you observe real questions that genuinely need more than one lookup — a comparison across documents, a question whose answer determines what to search for next, or a multi-hop question. Those exist, but they are usually a minority of traffic, and routing only them to the expensive path is cheaper than making every question expensive.'
+  - q: 'What is agentic RAG?'
+    a: 'Retrieval where the model controls the search: it reformulates the query, decides whether the results were good enough, searches again, and chooses when it has enough to answer.\n\nIt handles multi-hop and comparison questions that single-shot retrieval cannot, at the cost of several times the latency and tokens, plus a new failure mode — searching in a loop without converging. It needs the same bounds any agent loop needs.'
+---
+
+These get set against each other constantly, and the comparison does not typecheck. RAG is a way of getting text into a prompt. An agent is a way of deciding what to do next. Most agents retrieve; plenty of retrieval systems have no agent in them at all.
+
+The question worth asking is narrower and more useful: **does retrieval happen once, before the model runs, or repeatedly, because the model asked for it?**
+
+## Single-shot retrieval
+
+The user asks something, you embed it, search, put the top results in the prompt, and generate an answer. One retrieval, one model call, done.
+
+This is the right default and it is unfashionable. It answers most questions people ask of a document corpus, and it has properties that are hard to give up:
+
+| Property | Single-shot RAG | Agentic retrieval |
+| --- | --- | --- |
+| Model calls per question | 1 | 3–10 |
+| Latency | One retrieval plus one generation | Serial hops, p95 several times p50 |
+| Cost predictability | Fixed per question | Varies by question, sometimes wildly |
+| Evaluation | Straightforward — did it answer, was it grounded | Harder — was each hop justified |
+| Failure mode | Wrong documents retrieved | Wrong documents, plus searching forever |
+
+The last row matters. Single-shot RAG fails in one place, and it is a place you can measure: did retrieval return the right material. That makes it tractable to improve.
+
+## When one retrieval is genuinely not enough
+
+Three question shapes defeat single-shot retrieval, and no amount of better embeddings fixes them.
+
+**Multi-hop.** *"Which of our enterprise customers are on the old pricing tier?"* You must first find who the enterprise customers are, then check each one's tier. The second search depends on the first result, so a single query cannot express it.
+
+**Comparison.** *"How does our refund policy differ from the one in the vendor contract?"* Two documents must be retrieved deliberately and set against each other. Similarity search against the question will usually return one or the other.
+
+**Underspecified.** *"Why did our costs go up?"* The system has to work out what to look at before it can look. That is a decision, and decisions are what agents are for.
+
+If these describe a meaningful share of your real traffic, you need retrieval the model can drive. If they describe a hypothetical user you imagined, you do not.
+
+## The move most teams should make
+
+Not "replace RAG with an agent." **Classify the question, then route it.**
+
+A cheap classifier — or even a small model — decides whether this question is single-hop or needs iteration. Single-hop questions take the fast, cheap, predictable path. The minority that genuinely need multi-hop go to the agentic path and pay for it.
+
+This is the same argument as [routing by task difficulty](/notes/model-routing) rather than sending everything to your most capable model, and it works for the same reason: your traffic is not uniform, so a uniform pipeline is either overspending on the easy majority or failing the hard minority.
+
+It also gives you something to measure. If your classifier sends 8% of traffic down the expensive path, that is a number you can look at, argue about, and tune. "Everything is an agent" gives you no such lever.
+
+## What breaks in agentic retrieval
+
+If you do give the model control of search, you have built an agent loop and it needs what agent loops need.
+
+**Bound the hops.** A maximum number of searches per question. Without it, a question the corpus cannot answer becomes a model searching indefinitely, rephrasing slightly each time. This is the same unbounded-loop failure that tops the [failure taxonomy](/tools/ai-agent-failure-modes), wearing different clothes.
+
+**Detect non-convergence.** If three consecutive searches return substantially the same documents, more searching will not help. Stop and say so.
+
+**Filter by permission on every hop, not just the first.** This is the one that becomes a security incident. It is easy to authorise the initial query and then let subsequent model-generated queries run against the whole index. Every search is a data access and needs the same [tenant and permission filtering](/solutions/multi-tenant-ai-isolation) as the first.
+
+**Trace each hop separately.** When the answer is wrong you need to know which search was the bad one. A single span covering "retrieval" tells you nothing useful.
+
+## Retrieval quality is still the whole game
+
+Worth saying plainly, because the agentic framing distracts from it: in both architectures, most wrong answers come from retrieving the wrong material, not from the model reasoning badly over the right material.
+
+Semantic similarity is not relevance. A chunk that is topically close to the question can be the wrong section, an outdated version, or an example rather than a rule. Adding a loop on top of retrieval that returns the wrong documents produces a system that confidently searches its way to the same wrong answer several times more expensively.
+
+So before you make retrieval agentic, measure whether retrieval works. Take fifty real questions, look at what came back, and count how often the material needed to answer correctly was actually present. If that number is poor, fix chunking, metadata filtering and reranking first. An [eval suite](/solutions/agent-eval-suites) that asserts on retrieval — was the required document in the results — will tell you more than any architectural change.
+
+## Choosing
+
+- **Most questions answerable from one lookup** → single-shot RAG. Ship it.
+- **A meaningful minority need multi-hop** → classify and route, keeping the cheap path for the majority.
+- **Genuinely most questions require iteration** → agentic retrieval, bounded, with per-hop permission filtering and tracing.
+- **Retrieval quality unmeasured** → measure that first. Nothing else you change will matter as much.

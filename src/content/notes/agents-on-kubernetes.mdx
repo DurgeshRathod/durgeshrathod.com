@@ -1,0 +1,101 @@
+---
+title: 'Kubernetes defaults are wrong for agents, and the reason is request duration'
+description: 'Every default in a standard Deployment assumes requests finish in milliseconds. An agent request runs for thirty seconds to several minutes and spends almost all of it waiting on someone else, which breaks autoscaling, health checks and rolling deploys in that order.'
+published: '2026-08-04'
+readingMinutes: 9
+keywords:
+  - AI agent deployment on Kubernetes
+  - deploy LLM agent kubernetes
+  - autoscaling long running requests
+  - kubernetes graceful shutdown agent
+  - HPA queue depth
+faq:
+  - q: 'How should I autoscale AI agents on Kubernetes?'
+    a: 'Not on CPU. An agent process spends most of a request blocked on a network call to a model provider, so CPU stays low while the pod is saturated — the HPA sees an idle deployment under load and does nothing.\n\nScale on a metric that reflects the real constraint: in-flight requests per pod, or queue depth if work arrives through a queue. Both need a custom or external metrics adapter, which is the small amount of extra setup that makes autoscaling work at all here.'
+  - q: 'Why do my agent requests fail during a Kubernetes deploy?'
+    a: 'Because the default 30-second termination grace period is shorter than your requests. A rolling update sends SIGTERM, waits 30 seconds, then SIGKILLs the pod — and any agent run still in progress dies mid-execution, often after side effects have already been applied.\n\nSet terminationGracePeriodSeconds above your maximum request duration, handle SIGTERM by stopping intake while finishing in-flight work, and make actions idempotent so a retry after a lost run is safe.'
+  - q: 'Should agent requests be synchronous HTTP or queue-based?'
+    a: 'Queue-based, once runs regularly exceed roughly thirty seconds. Long synchronous HTTP forces you to fight ingress and load-balancer timeouts, ties a user connection to a pod that may be replaced, and makes retries ambiguous.\n\nAccept the request, return an identifier, process from a queue, and deliver the result by polling, SSE or webhook. It also gives you a queue depth metric to autoscale on, which solves the harder problem at the same time.'
+---
+
+Deploying an agent on Kubernetes is not hard. Running one there without hitting the same four problems everyone hits requires changing defaults that were chosen for a completely different traffic shape.
+
+The whole thing follows from one property: **an agent request takes thirty seconds to several minutes, and spends nearly all of that blocked on a network call to a model provider.** Kubernetes defaults assume requests take milliseconds and are CPU-bound. Almost every surprise comes from that mismatch.
+
+## Autoscaling on CPU does not work
+
+This is the first one people hit and the most confusing, because everything looks healthy while the service is unusable.
+
+A pod handling ten concurrent agent runs is mostly waiting on sockets. CPU utilisation might be 8%. The HorizontalPodAutoscaler, watching CPU, concludes the deployment is idle and scales nothing — or scales down — while requests queue behind whatever concurrency limit your process actually has.
+
+| Metric | Reflects agent load? | Notes |
+| --- | --- | --- |
+| CPU utilisation | No | Stays low while pods are saturated. The default, and useless here |
+| Memory | No | Roughly flat regardless of load |
+| In-flight requests per pod | Yes | The real constraint. Needs a custom metrics adapter |
+| Queue depth | Yes | Best signal if work arrives via a queue |
+| p95 latency | Partly | Lagging — you scale after users are affected |
+
+Use in-flight requests per pod, or queue depth. Both require the custom or external metrics API rather than the built-in resource metrics, which is a small amount of extra wiring and the difference between autoscaling that works and autoscaling that is decorative.
+
+Set the per-pod concurrency limit explicitly in your application too. Unbounded concurrency means a pod accepts work until it exhausts memory or file descriptors, and the failure looks like a crash rather than backpressure.
+
+## Rolling deploys kill in-flight runs
+
+The second problem, and the one that causes real damage because it happens silently during a routine deploy.
+
+A rolling update sends `SIGTERM`, waits `terminationGracePeriodSeconds` — **default 30** — then `SIGKILL`. If your agent runs take two minutes, every deploy destroys every run in progress. Worse, it destroys them partway through, after some tool calls have already applied side effects and before the compensating logic would have run.
+
+Three changes:
+
+- **`terminationGracePeriodSeconds` above your maximum request duration.** If p99 is 180 seconds, 240 is reasonable. This is the single most important line in the manifest.
+- **Handle `SIGTERM` as "stop accepting, finish what you have."** Fail readiness immediately so the service stops routing new work, keep processing in-flight runs, exit when drained.
+- **Make every tool action idempotent anyway.** Grace periods reduce the frequency of interrupted runs; they do not eliminate it, because nodes are also evicted and preempted. This is the same [idempotency requirement that integration needs](/for-leaders/integrating-agents-with-existing-systems), arriving from the infrastructure side.
+
+## Health probes need different shapes
+
+The three probes have distinct jobs and using one endpoint for all of them causes cascading restarts under load.
+
+**Liveness** must answer "is this process wedged" and nothing else. Make it trivial — a handler that returns 200 without touching a model provider or a database. A liveness probe that calls a dependency will fail during a provider outage, restart every pod, and destroy all in-flight work at exactly the moment things are already going wrong. I have seen a model-provider incident turn into a full outage entirely through this mechanism.
+
+**Readiness** answers "should I get traffic," and this one may reasonably check dependencies, and must return false as soon as `SIGTERM` arrives.
+
+**Startup** matters if your process loads anything at boot — a tokeniser, an embedding model, a warm connection pool. Without it, a slow start looks like a liveness failure and you get a crash loop that reads as a bug in your code.
+
+Set `failureThreshold` and `periodSeconds` on liveness generously. A pod busy with ten agent runs may respond to a probe slightly slowly, and a tight threshold turns load into restarts.
+
+## Long synchronous HTTP is a fight you lose
+
+You can serve a two-minute request over HTTP. You will spend the time raising timeouts in several places that each default to something shorter — ingress controller, cloud load balancer, service mesh, client — and each one produces a different opaque error.
+
+Past roughly thirty seconds, switch shape: accept the request, return an identifier immediately, do the work from a queue, deliver the result by polling, server-sent events or a webhook.
+
+That is more moving parts, and it buys three things at once: requests survive pod replacement, retries become unambiguous because the queue owns delivery semantics, and you get the queue-depth metric that solves the autoscaling problem. Kafka is a reasonable choice if you already run it — the [ingestion architecture behind 520 million parameters per cycle](/work/telecom-throughput) used exactly this decoupling for exactly this reason, long before there were models involved. The [event-driven note](/notes/event-driven-agents) covers the pattern in more depth.
+
+## Resource requests are counter-intuitive
+
+Because agents are IO-bound, CPU requests should be modest — over-requesting CPU means the scheduler packs fewer pods per node for no benefit, and you pay for idle cores.
+
+Memory is the one to watch, and it scales with concurrency rather than with traffic. Each in-flight run holds its conversation, retrieved documents and accumulated state. Ten concurrent runs each holding a large context is real memory. Size the memory limit against your concurrency limit, not against average usage, or you will meet the OOM killer during a traffic spike — which presents as random pod restarts and is genuinely unpleasant to diagnose.
+
+Set requests and limits close together for memory. A large gap means the pod is evictable under node pressure, and eviction mid-run is the interrupted-execution problem again.
+
+## What does not change
+
+Most of it. Secrets management, network policy, image scanning, PodDisruptionBudgets, resource quotas — all normal, all as they were. There is no agent-specific platform requirement here, and no reason to adopt new infrastructure for this workload.
+
+That is the useful conclusion. Running agents on Kubernetes is a long-request workload, which is a well-understood category with well-understood adjustments. If your team already runs stateful or long-polling services, you have done this before under a different name.
+
+## The checklist
+
+- Autoscale on in-flight requests or queue depth, never CPU.
+- Set an explicit per-pod concurrency limit in the application.
+- `terminationGracePeriodSeconds` greater than your p99 request duration.
+- Handle `SIGTERM`: fail readiness, drain, exit.
+- Liveness probe touches no dependencies.
+- Startup probe if anything loads at boot.
+- Queue-based intake once runs exceed about thirty seconds.
+- Memory sized against concurrency limit, requests close to limits.
+- Every tool action idempotent, because interrupted runs are inevitable.
+
+If you want the equivalent list for the application layer rather than the platform, that is what the [scorecard](/scorecard) walks through.

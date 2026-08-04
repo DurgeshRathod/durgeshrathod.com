@@ -1,0 +1,84 @@
+---
+title: 'You cannot prompt your way out of hallucination'
+description: 'Every team tries "only answer from the provided context" first, and every team finds it leaks. Hallucination is not a wording problem — it is what happens when nothing between the model and the user checks whether a claim is true.'
+published: '2026-08-04'
+readingMinutes: 8
+keywords:
+  - AI agent hallucination prevention
+  - reduce LLM hallucination
+  - grounded generation citations
+  - constrained output LLM
+  - hallucination detection
+faq:
+  - q: 'How do you prevent AI agents from hallucinating?'
+    a: 'You do not prevent it in the model, you contain it in the system. Four mechanisms do the work: constrain the output space so invalid answers are unrepresentable, require citations and verify them mechanically rather than trusting them, validate every claim that touches a system of record before acting on it, and make refusal an explicitly allowed and rewarded output.\n\nPrompt instructions like "only use the provided context" reduce the rate somewhat and never eliminate it. Anything downstream that assumes the model was correct is where the actual damage happens.'
+  - q: 'Does a better model stop hallucination?'
+    a: 'It reduces the rate and does not change the category. A stronger model hallucinates less often and more plausibly, which can make things worse operationally — the errors that survive are the ones hardest to spot.\n\nIf your system breaks when a claim is wrong, the fix is a check that catches wrong claims, not a model that is wrong less often.'
+  - q: 'How do you detect hallucination in production?'
+    a: 'Verify mechanically what can be verified. If the model cites a document, check the citation resolves and the quoted text appears in it. If it returns an identifier, check the record exists. If it returns a number that should come from a system, compare it.\n\nThose checks catch a large share of consequential hallucinations cheaply and deterministically. Reserve an LLM judge for genuinely subjective faithfulness, because assertions are free, instant and deterministic, and a judge is none of those things.'
+---
+
+The first thing every team tries is a stronger instruction. *Only answer using the provided context. If the answer is not in the context, say you do not know.* It helps. It also leaks, reliably, and usually in exactly the situation you cared about — where the context nearly answers the question and the model bridges the gap with something plausible.
+
+That is not a failure of prompt engineering. A language model produces likely continuations; a fluent invented citation is a likely continuation. Asking it to want to be correct does not give it a mechanism for checking.
+
+So stop trying to prevent it and start making it harmless.
+
+## Four mechanisms, in order of how much they buy you
+
+| Mechanism | What it eliminates | Cost |
+| --- | --- | --- |
+| Constrained output | Invalid values entirely — they become unrepresentable | Almost none |
+| Verified citations | Invented sources and misquotes | One lookup per claim |
+| Validation before action | Wrong claims reaching a system of record | One existence check per reference |
+| Permitted refusal | Answers fabricated to avoid saying "I don't know" | A little coverage |
+
+Notice what is absent: better prompts, and a bigger model. Both help at the margin. Neither is a mechanism.
+
+## Constrain the output space
+
+The cheapest win by a wide margin. If a field can only be one of six statuses, do not ask for a string and hope — give the model an enum. If you need structured data, use the provider's structured-output or tool-calling mode with a schema, so the shape is enforced rather than requested.
+
+This does not make the model choose correctly. It makes whole categories of wrongness impossible to express, which means they cannot reach your database. An invented status is no longer a bug you might notice next quarter; it is a validation error at the boundary.
+
+Extended to identifiers, this is the highest-value version: never let a model produce a primary key from memory. Give it a list to choose from, or have it produce a search query and select from real results. A hallucinated order ID that happens to exist is one of the genuinely dangerous failures, because every downstream check passes.
+
+## Verify citations rather than requesting them
+
+Asking for citations improves grounding. Trusting them does not, because a fabricated citation looks exactly like a real one.
+
+The mechanism is mechanical verification: the model returns a claim and a source identifier, and your code checks that the identifier resolves to a document that was actually in the retrieved set, and that the quoted span appears in it. Both are cheap string and lookup operations. Fail closed — if a citation does not verify, the claim does not ship.
+
+This turns "the model says this came from the policy document" into "this came from the policy document," which is a categorically different guarantee and is the one an auditor or a customer actually wants. It is also the field I insist on in a [trace spec](/solutions/llm-observability), because citation-verification rate is a number you can watch and alert on.
+
+## Validate before acting, not after
+
+Any claim that will cause a side effect gets checked against the system of record first. The customer ID exists. The order belongs to this user. The amount matches. The record is in a state where this transition is legal.
+
+This is the rule that [makes integration work](/for-leaders/integrating-agents-with-existing-systems): the model's output is untrusted input. Not because the model is bad — because it is probabilistic, and that is how you treat probabilistic components in a system with side effects. Reject rather than coerce; a rejected call the agent can retry correctly is far better than a coerced call that half-succeeds.
+
+## Make refusal a legitimate output
+
+A surprising amount of hallucination is a model avoiding an unhelpful answer. If every path in your prompt leads to producing something, it will produce something.
+
+Give it somewhere to go. An explicit `insufficient_information` outcome, with a specification of when to use it, and — critically — evals that reward using it correctly. If your eval suite only measures answer quality on questions that have answers, you have created a system-wide incentive to guess. Add unanswerable questions to the suite and assert that the agent declines them. Teams are almost always surprised by the first result.
+
+## What about a judge?
+
+There is a place for an LLM judge here: assessing whether an answer is faithful to a source document is genuinely subjective and hard to assert.
+
+But reach for it last. Citation resolution, schema validity, identifier existence and numeric agreement are all deterministic, instant, free, and they catch the majority of consequential hallucinations. A judge is slow, costs money on every run, and is non-deterministic — which means [using one where an assertion would do](/notes/llm-as-judge-overused) buys you a flaky test.
+
+## Where this shows up worst
+
+Two contexts where the containment has to be tighter, both of which I have worked in:
+
+**Analytics and text-to-SQL.** A hallucinated `WHERE` clause returns a plausible number, and a plausible number is worse than an error because someone will act on it. The mechanisms that matter are schema-constrained generation, a read-only replica, and showing the query alongside the result so it can be checked. That is most of what makes [natural-language analytics trustworthy](/solutions/text-to-sql-reliability).
+
+**Anything about a document that carries obligations.** In contract review, an unsupported sentence is not a quality issue, it is a liability — which is why [that industry page](/industries/legal-and-contracts) treats citation verification as the non-negotiable feature rather than a nice-to-have.
+
+## The one-line version
+
+Assume it will produce a confident false statement today, and ask what in your system notices. If the answer is "a user, eventually," that is the gap — and it is an architecture gap, not a prompt one.
+
+The [failure taxonomy](/tools/ai-agent-failure-modes) has the full list of nine ways this shows up in practice, with the specific fix for each.
