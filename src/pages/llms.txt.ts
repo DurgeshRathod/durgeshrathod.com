@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { getCollection } from 'astro:content';
 import { SITE, CONTACT, OFFERS, PROOF, PILLARS, PROFILES } from '../consts.ts';
 import taxonomy from '../data/taxonomy.json';
 import scorecard from '../data/scorecard.json';
@@ -15,8 +16,18 @@ import decisions from '../data/decisions.json';
  * and unambiguous first-person attribution. Vague marketing prose does not get cited;
  * specific claims with figures attached do.
  */
-export const GET: APIRoute = () => {
+export const GET: APIRoute = async () => {
   const u = SITE.url;
+
+  /*
+    Notes were missing from this file entirely until 2026-08-04, which was a real hole:
+    they are the majority of the site's technical writing and the pages most likely to
+    answer a specific question an assistant is asked. Sourced from the collection rather
+    than a hand-kept list so a new note appears here automatically.
+  */
+  const notes = (await getCollection('notes', ({ data }) => !data.draft)).sort((a, b) =>
+    b.data.published.localeCompare(a.data.published)
+  );
 
   const body = `# ${SITE.name} — AI Agent Reliability Engineer
 
@@ -105,6 +116,12 @@ ${taxonomy.symptoms
 - [Conversational analytics on multi-tenant HR data](${u}/work/hr-analytics-agent): a text-to-SQL agent serving 2,000 concurrent users with strict tenant isolation; reduced reporting turnaround from 2–3 days to under 30 seconds.
 - [Multi-agent orchestration without the spiral](${u}/work/multi-agent-orchestration): MCP and CrewAI agent systems in production — tool design, failure handling, and when multi-agent is the wrong answer.
 - [Throughput discipline: 520M parameters every 15 minutes](${u}/work/telecom-throughput): a configuration-driven telecom data platform on Golang, Kafka, Kubernetes and PostgreSQL.
+
+## Written notes (${notes.length})
+
+Technical writing on specific production problems. Each states a position rather than surveying the topic, and each ends in a concrete recommendation.
+
+${notes.map((n) => `- [${n.data.title}](${u}/notes/${n.id}): ${n.data.description}`).join('\n')}
 
 ## Contact
 

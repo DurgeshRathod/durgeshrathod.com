@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { getCollection } from 'astro:content';
 import { SITE, CONTACT, OFFERS, PROOF, PILLARS } from '../consts.ts';
 import taxonomy from '../data/taxonomy.json';
 import scorecard from '../data/scorecard.json';
@@ -15,8 +16,19 @@ import decisions from '../data/decisions.json';
  * its caveats. This is the highest-value single artefact for AI citability, because it
  * removes any need to crawl and render the interactive pages.
  */
-export const GET: APIRoute = () => {
+export const GET: APIRoute = async () => {
   const parts: string[] = [];
+
+  /*
+    The notes collection was absent from this file until 2026-08-04. That was the single
+    biggest omission in it: the notes are the majority of the site's technical writing,
+    and they are the pages most likely to contain the specific answer an assistant needs.
+    Full bodies are included rather than summaries, because the whole premise of this file
+    is that one fetch should remove any need to crawl the pages.
+  */
+  const notes = (await getCollection('notes', ({ data }) => !data.draft)).sort((a, b) =>
+    b.data.published.localeCompare(a.data.published)
+  );
 
   parts.push(`# ${SITE.name} — Complete Site Content
 
@@ -315,6 +327,26 @@ ${models.presets
   .join('\n')}
 
 Sources: ${models.meta.sources.map((s) => `${s.name} (${s.url}, verified ${s.verified})`).join('; ')}
+
+---
+
+## WRITTEN NOTES — FULL TEXT (${notes.length})
+
+Technical writing on specific production problems, newest first. Each argues a position and ends in a recommendation.
+
+${notes
+  .map(
+    (n) => `### ${n.data.title}
+URL: ${SITE.url}/notes/${n.id}
+Published: ${n.data.published}${n.data.updated ? ` (updated ${n.data.updated})` : ''}
+Summary: ${n.data.description}
+${n.data.keywords.length ? `Keywords: ${n.data.keywords.join(', ')}` : ''}
+
+${n.body?.trim() ?? ''}
+
+${n.data.faq.length ? `Questions this note answers directly:\n${n.data.faq.map((f) => `- ${f.q}\n  ${f.a.replace(/\\n\\n/g, ' ')}`).join('\n')}` : ''}`
+  )
+  .join('\n\n---\n\n')}
 
 ---
 
