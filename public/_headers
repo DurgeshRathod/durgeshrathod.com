@@ -31,5 +31,11 @@
   Content-Type: text/plain; charset=utf-8
   Cache-Control: public, max-age=3600
 
+# IndexNow ownership proof. The spec requires a UTF-8 text file; declared
+# explicitly rather than relying on the host inferring it from the extension.
+/054431d00f8042ff943d7db2eb897184.txt
+  Content-Type: text/plain; charset=utf-8
+  Cache-Control: public, max-age=86400
+
 /robots.txt
   Cache-Control: public, max-age=3600
