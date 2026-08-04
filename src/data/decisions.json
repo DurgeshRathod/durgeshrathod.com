@@ -1182,6 +1182,581 @@
                     "a": "Not if the human only sees the recommendation. Reviewers presented with a suggestion and an approve button approve nearly all of them, and regulators distinguish meaningful oversight from a formality.\n\nOversight that holds up means the reviewer sees the evidence the agent used, can tell when the agent was uncertain, and has enough time per case for the review to be real. If your logs show four seconds per decision, that is evidence against you rather than for you."
                 }
             ]
+        },
+        {
+            "slug": "do-we-need-our-own-llm",
+            "name": "Do we need our own model?",
+            "order": 9,
+            "h1": "Do we need our own LLM, or is an API enough?",
+            "tagline": "Almost always an API. Three situations genuinely justify self-hosting, and “security” is usually not one of them.",
+            "description": "When self-hosting an open-weight model actually pays for itself versus calling an API: the real break-even on GPU cost, what data residency does and does not require, and why the security argument usually does not survive contact with the numbers.",
+            "keywords": [
+                "do we need our own LLM",
+                "self-hosted LLM for enterprise",
+                "GPU requirements for AI agents",
+                "open source LLM vs API",
+                "self-host vs API cost"
+            ],
+            "audience": [
+                "Leaders being asked to fund GPU capacity",
+                "Teams told by security that data cannot leave the building",
+                "Anyone comparing an open-weight model to a frontier API"
+            ],
+            "theQuestion": "Should we run our own model instead of calling someone’s API?",
+            "answerFirst": "Default to an API. Self-hosting replaces a variable cost you can turn off with a fixed cost you cannot, and it moves model operations onto your team — quantisation, batching, KV-cache management, capacity planning, upgrades. Three cases genuinely justify it: a legal data-residency or air-gap requirement you cannot satisfy contractually; steady, high, predictable volume where a reserved GPU beats per-token pricing; or a workload where a small fine-tuned model on cheap hardware outperforms a frontier model on a narrow task. Note what is not on that list — “our data is sensitive” is usually a contract problem, not a hosting problem, and the frontier providers all offer zero-retention endpoints. The honest test is a spreadsheet, and most teams have not built it.",
+            "body": [
+                "The argument for self-hosting almost always arrives as a security argument and almost always turns out to be an economics argument that nobody has run. Security first, because it is quickest to settle: if your objection is that a third party might train on your data, that is contractual and already addressed by zero-retention endpoints. If your objection is that data must not leave a jurisdiction, check whether your provider has a region there — several do — because that is far cheaper than operating your own inference. Only a genuine air-gap requirement, or a regulator that names self-hosting specifically, actually forces the decision.",
+                "Then the economics, which is where it gets interesting and where the answer is genuinely sometimes yes. Per-token pricing is a variable cost: at low volume it is close to free, and it scales linearly. A GPU is a fixed cost: you pay for it idle. So there is a crossover, and it depends almost entirely on utilisation. A reserved instance running at 10% utilisation is dramatically worse than an API. The same instance at 70% utilisation, on a workload that never spikes, can be several times cheaper. The question is not “is self-hosting cheaper” but “what is our sustained utilisation, and how confident are we in that number.”",
+                "What the spreadsheet usually leaves out is people. Self-hosting means someone on your team now owns inference performance: choosing a quantisation that does not degrade quality in ways your evals do not catch, tuning batch size against latency targets, managing KV-cache memory, planning capacity for launches, and repeating some of that on every model upgrade. That is a meaningful fraction of an engineer indefinitely. At Indian or European salary levels this may still work out; the point is it belongs in the comparison and it usually is not there.",
+                "There is a third case that is legitimately compelling and gets discussed least: a small model fine-tuned on one narrow task can beat a frontier model at that task, on hardware that costs very little. Classification, extraction, routing, intent detection. If a large part of your token spend is a repetitive, well-specified task, moving just that task to a small self-hosted model — while keeping the frontier API for everything hard — is usually a better move than migrating wholesale. It is also the only version of this decision that is easy to reverse."
+            ],
+            "asset": {
+                "kind": "table",
+                "title": "Reason given versus whether self-hosting actually solves it",
+                "intro": "Work down the list. If your reason is in the top half, self-hosting is probably not the answer.",
+                "columns": [
+                    "Reason for self-hosting",
+                    "Does it hold up?",
+                    "Cheaper alternative"
+                ],
+                "rows": [
+                    [
+                        "Our data is confidential",
+                        "Rarely — this is a contract question",
+                        "Zero-retention endpoint plus a signed DPA"
+                    ],
+                    [
+                        "The provider will train on our data",
+                        "No — explicitly excluded on business tiers",
+                        "Read the terms once, confirm in writing"
+                    ],
+                    [
+                        "Data must stay in-region",
+                        "Sometimes — depends on your provider’s regions",
+                        "A provider region in the same jurisdiction"
+                    ],
+                    [
+                        "We need to avoid vendor lock-in",
+                        "Partly — but you gain hardware lock-in",
+                        "An abstraction layer plus evals that run against two providers"
+                    ],
+                    [
+                        "We want lower latency",
+                        "Sometimes — you remove a network hop, add queueing",
+                        "Prompt caching, smaller model for easy turns, streaming"
+                    ],
+                    [
+                        "API costs are too high",
+                        "Only if utilisation is high and steady",
+                        "Model routing and caching first — usually a bigger win, no capex"
+                    ],
+                    [
+                        "Genuine air-gap or named regulatory requirement",
+                        "Yes — this actually forces it",
+                        "None. Budget for it properly"
+                    ],
+                    [
+                        "High, steady, predictable volume",
+                        "Yes — reserved GPU beats per-token at high utilisation",
+                        "None, but measure utilisation before committing"
+                    ],
+                    [
+                        "One narrow repetitive task dominates spend",
+                        "Yes, and this is the best version",
+                        "Self-host just that task; keep the API for the hard ones"
+                    ]
+                ],
+                "note": "The top six rows cover most of the conversations I have. If your reason is in that half, do model routing and caching first — those cut spend without a capital commitment and without adding inference to your team’s job description."
+            },
+            "secondAsset": {
+                "kind": "table",
+                "title": "What belongs in the comparison",
+                "intro": "Both columns, or the comparison is not honest. The lines teams forget are marked.",
+                "columns": [
+                    "Cost line",
+                    "API",
+                    "Self-hosted"
+                ],
+                "rows": [
+                    [
+                        "Per-request compute",
+                        "Per-token, scales to zero",
+                        "Included in the instance you already paid for"
+                    ],
+                    [
+                        "Idle capacity",
+                        "None — you pay for what you use",
+                        "Paid for continuously — the decisive variable"
+                    ],
+                    [
+                        "Traffic spikes",
+                        "Absorbed by the provider",
+                        "You over-provision, or you queue"
+                    ],
+                    [
+                        "Model upgrades",
+                        "Change a version string",
+                        "Re-evaluate, re-quantise, re-tune, re-deploy"
+                    ],
+                    [
+                        "Inference engineering time — often omitted",
+                        "None",
+                        "A material fraction of an engineer, indefinitely"
+                    ],
+                    [
+                        "Eval suite",
+                        "Needed either way",
+                        "Needed either way, and needed more"
+                    ],
+                    [
+                        "Quality risk from quantisation — often omitted",
+                        "None",
+                        "Real, and invisible without evals"
+                    ],
+                    [
+                        "Exit cost",
+                        "Change a version string",
+                        "Hardware commitment and migration"
+                    ]
+                ],
+                "note": "If the two columns are close, choose the API — it is the reversible option. Self-hosting should win clearly on the numbers or not at all, because you cannot cheaply undo it once the capacity is bought and the expertise is built."
+            },
+            "relatedSolutions": [
+                "llm-cost-reduction",
+                "agent-eval-suites"
+            ],
+            "faq": [
+                {
+                    "q": "Do we need our own LLM to keep our data private?",
+                    "a": "Usually not. Data privacy with a hosted model is a contractual matter: business tiers exclude training on your data, and zero-retention endpoints mean requests are not stored.\n\nSelf-hosting is genuinely required when you have an air-gap requirement, or a regulator that names self-hosting specifically, or a data-residency obligation your provider has no region for. Those are real but far less common than the security conversation implies."
+                },
+                {
+                    "q": "When is self-hosting an LLM actually cheaper than an API?",
+                    "a": "When utilisation is high and predictable. A GPU is a fixed cost you pay while idle, so the comparison turns almost entirely on sustained utilisation.\n\nAt low or spiky utilisation an API is dramatically cheaper. At high steady utilisation a reserved instance can be several times cheaper. Before committing, measure your actual sustained request rate — and do model routing and caching first, because those usually cut more cost than self-hosting and require no capital commitment."
+                },
+                {
+                    "q": "What GPU do we need to run an LLM for our agent?",
+                    "a": "It depends on model size, quantisation and how much concurrency you need, and the honest answer is that if you are asking this question first you are solving the problem in the wrong order.\n\nDecide the workload before the hardware. A narrow classification or extraction task can run on a small model and modest hardware. General reasoning at frontier quality needs enough memory for the weights plus KV cache for every concurrent request, which is where teams underestimate — concurrency, not the weights, is usually what forces a bigger card."
+                },
+                {
+                    "q": "Is there a middle option between self-hosting everything and using an API?",
+                    "a": "Yes, and it is usually the best answer. Move one narrow, high-volume, well-specified task — classification, extraction, routing, intent detection — to a small self-hosted model, and keep a frontier API for everything that needs real reasoning.\n\nThat captures most of the cost saving, needs far less hardware, and is easy to reverse if the quality is not there. Wholesale migration is the version that gets regretted."
+                }
+            ]
+        },
+        {
+            "slug": "human-approval-workflows",
+            "name": "Where to put a human in the loop",
+            "order": 10,
+            "h1": "Where should a human approve what your AI agent does?",
+            "tagline": "Gate on the action, not on the model’s confidence. Reversibility and blast radius decide, and confidence scores are not calibrated.",
+            "description": "How to design human approval for AI agents: classify actions by reversibility and blast radius rather than thresholding on model confidence, why approve-buttons become rubber stamps, and what the reviewer has to see for the oversight to be real.",
+            "keywords": [
+                "AI agent human approval workflow",
+                "human in the loop AI agent",
+                "AI agent approval gates",
+                "when should AI need approval",
+                "agent autonomy levels"
+            ],
+            "audience": [
+                "Leaders deciding how much autonomy to grant an agent",
+                "Teams designing an approval step that will not be rubber-stamped",
+                "Anyone who has to defend an automated decision afterwards"
+            ],
+            "theQuestion": "Which of the agent’s actions should a person approve first?",
+            "answerFirst": "Classify by two properties of the action, not by how sure the model claims to be: can it be undone, and how far does it reach. Anything irreversible and wide gets a human gate. Anything reversible and narrow does not need one and is made worse by adding one, because approval fatigue is real and a reviewer who approves five hundred trivial items will approve the dangerous one too. Do not threshold on model confidence — LLM self-reported confidence is not calibrated, so a 0.9 does not mean ninety percent right, and a gate built on it fails exactly when the model is confidently wrong. For a gate to count as oversight rather than ceremony, the reviewer must see the evidence the agent used, be able to tell when the agent was uncertain by some measure other than its own assertion, and have enough time per item for the review to be real.",
+            "body": [
+                "The instinct is to gate on confidence: let the agent act when it is sure, ask a human when it is not. It is intuitive and it does not work, because the number is not a probability. Language models are poorly calibrated about their own correctness, and the failure mode that costs you money is precisely the confident wrong answer — which sails through a confidence gate by construction. If you build one thing differently after reading this, make it that.",
+                "What works is boring: classify actions. Reversibility first — can you undo this with a compensating action, and how expensive is that. Sending an email is irreversible in the sense that matters. Updating a database row is reversible if you kept the old value and nobody has read it yet. Blast radius second — does this touch one record or ten thousand, one customer or all of them. Those two properties are known at design time, they do not vary per request, and they are properties of your system rather than guesses about the model.",
+                "Then be disciplined about not gating the cheap stuff. Approval fatigue is the failure mode that quietly defeats most of these designs: a reviewer facing a queue of mostly-fine items becomes an approve button with a person attached, and by the time the genuinely dangerous item arrives, the habit is already formed. Every unnecessary gate makes the necessary ones less effective. If you find yourself approving nearly everything, that gate is not protecting you and should be removed or batched.",
+                "And design what the reviewer sees, which is the part that gets skipped. A screen showing the agent’s proposed action and two buttons produces rubber-stamping. A screen showing the proposal, the evidence it was drawn from, the specific fields that will change, and a signal of genuine uncertainty — a retrieval that returned nothing relevant, a tool that errored and was retried, an argument that failed validation once — produces review. The difference is not the reviewer’s diligence, it is the information architecture."
+            ],
+            "asset": {
+                "kind": "table",
+                "title": "Action classes and the gate each one needs",
+                "intro": "Place each of your agent’s actions in a row. The gate follows from the row, not from a confidence score.",
+                "columns": [
+                    "Action class",
+                    "Example",
+                    "Gate"
+                ],
+                "rows": [
+                    [
+                        "Reversible, narrow",
+                        "Draft a reply, tag a ticket, add an internal note",
+                        "None. Log it and move on"
+                    ],
+                    [
+                        "Reversible, wide",
+                        "Re-tag a thousand records",
+                        "No per-item gate; a dry run plus a bulk undo"
+                    ],
+                    [
+                        "Irreversible, narrow, low value",
+                        "Post an internal comment",
+                        "None, but keep it in the audit trail"
+                    ],
+                    [
+                        "Irreversible, narrow, customer-visible",
+                        "Send an email, publish a message",
+                        "Human approves the exact text, or a hold-and-cancel window"
+                    ],
+                    [
+                        "Irreversible, moves money",
+                        "Issue a refund, apply a credit",
+                        "Human approval, always, with the amount and reason shown"
+                    ],
+                    [
+                        "Irreversible, wide",
+                        "Bulk delete, mass notification, schema change",
+                        "Human approval plus a second pair of eyes"
+                    ],
+                    [
+                        "Affects a person’s rights or opportunities",
+                        "Screen a candidate, decline an application",
+                        "Meaningful human review, and a bias assessment on the pipeline"
+                    ],
+                    [
+                        "Externally observable and permanent",
+                        "Public post, filing, contractual commitment",
+                        "Human approval and a named accountable person"
+                    ]
+                ],
+                "note": "Two rows deliberately say “no gate”. That is not laxity — it is what keeps the reviewer’s attention available for the rows that matter. A gate on everything is functionally a gate on nothing."
+            },
+            "secondAsset": {
+                "kind": "checklist",
+                "title": "Does your approval step actually count as oversight?",
+                "intro": "Six checks. If you cannot answer yes to the first four, you have a rubber stamp, and in a regulated context that is worse than no gate — it is evidence you claimed a control you did not have.",
+                "items": [
+                    "The reviewer sees the evidence the agent used, not only its conclusion.",
+                    "The reviewer sees exactly which fields or values will change.",
+                    "Genuine uncertainty is surfaced from system signals — empty retrieval, tool errors, failed validation — not from the model’s own confidence claim.",
+                    "Median review time is long enough for the review to be real, and you measure it.",
+                    "The reviewer can edit rather than only approve or reject, so a near-miss does not force a rejection.",
+                    "What was shown to the reviewer is logged alongside their decision, so the oversight can be demonstrated later."
+                ],
+                "note": "The fourth item is the one that catches teams out. If your logs show a median of four seconds per approval, you have measured the absence of review — and you have written it down."
+            },
+            "relatedSolutions": [
+                "agent-eval-suites",
+                "llm-observability"
+            ],
+            "faq": [
+                {
+                    "q": "Where should a human approve an AI agent’s actions?",
+                    "a": "Gate on the action’s properties, not the model’s confidence. Two questions decide it: can the action be undone, and how far does it reach.\n\nIrreversible and wide always needs a human. Irreversible and customer-visible — sending an email, issuing a refund — needs a human. Reversible and narrow does not, and adding a gate there makes things worse by consuming the reviewer’s attention."
+                },
+                {
+                    "q": "Should we use the model’s confidence score to decide when to ask a human?",
+                    "a": "No. Self-reported LLM confidence is not calibrated, so a 0.9 does not mean ninety percent likely correct.\n\nWorse, the failure that costs you money is the confident wrong answer, which passes a confidence gate by definition. Use system signals instead — retrieval returned nothing relevant, a tool errored, an argument failed validation — and gate on the action class regardless."
+                },
+                {
+                    "q": "Why do human approval steps stop working over time?",
+                    "a": "Approval fatigue. A reviewer facing a queue of mostly-fine items becomes an approve button with a person attached, and the habit is already formed by the time a dangerous item arrives.\n\nThe fix is counter-intuitive: remove gates. Every unnecessary approval makes the necessary ones less effective. If you approve nearly everything at a given gate, it is not protecting you."
+                },
+                {
+                    "q": "What does the reviewer need to see for approval to be meaningful?",
+                    "a": "The proposed action, the evidence it was drawn from, the exact fields that will change, and a signal of real uncertainty. Plus the ability to edit rather than only approve or reject.\n\nAnd log what was shown alongside the decision. Without that you cannot later demonstrate that oversight happened — and “a human approved it” is a claim you may need to substantiate to an auditor or a regulator."
+                }
+            ]
+        },
+        {
+            "slug": "agent-cost-vs-hiring",
+            "name": "Agent cost versus hiring",
+            "order": 11,
+            "h1": "Is building an AI agent cheaper than hiring someone?",
+            "tagline": "Sometimes. The comparison most teams run — token cost against salary — leaves out the three lines that decide it.",
+            "description": "How to compare the true cost of an AI agent against hiring: the build cost, the eval suite that never stops needing maintenance, and the failure tail. Includes what a realistic first deployment timeline looks like.",
+            "keywords": [
+                "AI agent cost vs hiring",
+                "AI agent ROI",
+                "how long does AI agent implementation take",
+                "cost of building an AI agent",
+                "AI automation business case"
+            ],
+            "audience": [
+                "Founders weighing an agent against a headcount",
+                "Leaders asked to justify an automation budget",
+                "Anyone who has been shown a payback calculation that felt too good"
+            ],
+            "theQuestion": "We could hire someone to do this, or build an agent. Which is cheaper?",
+            "answerFirst": "The comparison usually presented is monthly token cost against monthly salary, and agents win it enormously — which is why it is the wrong comparison. Three lines are missing. Build cost: getting an agent from demo to trustworthy is typically six to twelve weeks of engineering, not a weekend, and that is capital spent before any saving starts. Eval maintenance: an agent needs a test suite that is extended every time the surface grows and re-run on every model change, which is ongoing engineering forever, not a one-off. And the failure tail: a person who is unsure asks; an agent that is unsure proceeds confidently, so you are also buying the cost of the mistakes and the review capacity to catch them. Include those and agents still often win — but on tasks that are high-volume and narrow, not on tasks that are varied and judgement-heavy.",
+            "body": [
+                "Start with what an agent is genuinely good at, because that determines whether the business case exists at all. Agents win decisively where the task is high-volume, well-specified, and the same shape every time: extract these fields, classify this ticket, answer from this document set, generate this report. They lose where the work is varied, requires chasing someone for missing context, or carries accountability that has to sit with a person. Most roles are a mixture, which is why “replace a headcount” is usually the wrong framing and “remove the eighty percent of this role that is repetitive” is the right one.",
+                "Then be honest about build cost, because this is where published payback calculations quietly cheat. A prototype takes days. An agent you would let touch customer data unsupervised takes six to twelve weeks: the eval suite, the tool-argument validation, the tracing, the bounded loops, the approval gates, the rollback path. Front-load that and a five-thousand-a-month saving against a forty-thousand build is a payback of eight months, not eight days.",
+                "The line that surprises people most is eval maintenance. A hired person absorbs change themselves — a new product, a new edge case, a new policy, and they adapt. An agent does not: someone extends the test suite, someone re-runs it when the provider updates the model, someone investigates when a pass rate moves. Budget a meaningful ongoing fraction of an engineer for as long as the agent runs. That cost never converges to zero, and leaving it out is the single most common error in these business cases.",
+                "And the failure tail, which is the difference between the two options that matters most. A junior employee who does not understand a request asks a question. An agent proceeds, fluently and wrongly, at volume. So the real comparison is not agent-cost against salary; it is agent-cost plus review capacity plus the expected cost of errors, against salary. On a narrow high-volume task that sum is still usually much smaller. On a judgement-heavy task it frequently is not, and the honest recommendation is to hire."
+            ],
+            "asset": {
+                "kind": "table",
+                "title": "The lines that are usually missing",
+                "intro": "The first two rows are the comparison people run. The rest is what changes the answer.",
+                "columns": [
+                    "Cost line",
+                    "Agent",
+                    "Employee"
+                ],
+                "rows": [
+                    [
+                        "Ongoing run cost",
+                        "Tokens, infra — often modest",
+                        "Salary plus employment costs"
+                    ],
+                    [
+                        "Throughput",
+                        "Effectively unlimited, parallel",
+                        "Fixed hours, one thing at a time"
+                    ],
+                    [
+                        "Build cost before any saving",
+                        "6–12 weeks of engineering",
+                        "Recruitment plus onboarding"
+                    ],
+                    [
+                        "Eval suite maintenance — usually omitted",
+                        "Ongoing, forever, per model change",
+                        "None — they adapt themselves"
+                    ],
+                    [
+                        "Cost of being wrong — usually omitted",
+                        "Confident errors at volume",
+                        "Asks a question instead"
+                    ],
+                    [
+                        "Review capacity — usually omitted",
+                        "Someone checks the risky outputs",
+                        "Normal management"
+                    ],
+                    [
+                        "Handles novel situations",
+                        "Poorly, and without saying so",
+                        "Well, and flags them"
+                    ],
+                    [
+                        "Accountability",
+                        "Sits with whoever deployed it",
+                        "Sits with the person"
+                    ],
+                    [
+                        "Scales down",
+                        "Instantly",
+                        "Slowly and painfully"
+                    ]
+                ],
+                "note": "A quick sanity check on any payback claim: ask what happens in month thirteen when the provider deprecates the model version. If the plan has no answer, the eval-maintenance line is missing and the payback figure is optimistic."
+            },
+            "secondAsset": {
+                "kind": "table",
+                "title": "A realistic first-deployment timeline",
+                "intro": "What “how long does implementation take” actually looks like for one narrow, well-chosen task. Multiply for anything broader.",
+                "columns": [
+                    "Phase",
+                    "Duration",
+                    "What exists at the end"
+                ],
+                "rows": [
+                    [
+                        "Pick the task and define done",
+                        "3–5 days",
+                        "A written specification of correct output, and how you will measure it"
+                    ],
+                    [
+                        "Prototype",
+                        "1 week",
+                        "It works on happy-path examples. Do not let anyone see this yet"
+                    ],
+                    [
+                        "Eval suite on real traffic",
+                        "1–2 weeks",
+                        "A pass rate you trust, and a list of what actually fails"
+                    ],
+                    [
+                        "Close the gaps the evals found",
+                        "2–3 weeks",
+                        "Validation, bounded loops, cost ceiling, tracing"
+                    ],
+                    [
+                        "Shadow mode",
+                        "1–2 weeks",
+                        "It runs on live traffic, takes no action, and you compare against humans"
+                    ],
+                    [
+                        "Gated rollout",
+                        "1–2 weeks",
+                        "Live on a slice, with approval gates and a rollback path"
+                    ]
+                ],
+                "note": "Six to twelve weeks, and shadow mode is the phase teams skip. It is also the cheapest insurance available: it tells you the real error rate before a single customer is affected."
+            },
+            "relatedSolutions": [
+                "agent-eval-suites",
+                "llm-cost-reduction"
+            ],
+            "faq": [
+                {
+                    "q": "Is an AI agent cheaper than hiring someone?",
+                    "a": "On a high-volume, well-specified, repetitive task, usually yes and often by a lot. On varied, judgement-heavy work with real accountability, frequently no.\n\nThe comparison that makes agents look free — monthly token cost against monthly salary — omits build cost, ongoing eval maintenance, and the cost of confident errors plus the review capacity to catch them. Include those three and the picture is still often favourable, but on a much narrower set of tasks."
+                },
+                {
+                    "q": "How long does it take to implement an AI agent?",
+                    "a": "Six to twelve weeks for one narrow task, from specification to a gated production rollout.\n\nA prototype takes days, which is what creates the expectation problem. The remaining time is the eval suite, tool-argument validation, tracing, bounded loops, approval gates, and shadow mode — running on live traffic while taking no action so you can measure the real error rate before a customer is affected."
+                },
+                {
+                    "q": "What ongoing cost does an AI agent have besides tokens?",
+                    "a": "Eval maintenance, and it never goes to zero. Every time the agent’s surface grows the test suite is extended; every time the provider updates the model it is re-run; every time a pass rate moves someone investigates.\n\nBudget a meaningful ongoing fraction of an engineer for the life of the agent. A hired person absorbs change themselves — an agent does not, and that difference is the most commonly omitted line in these business cases."
+                },
+                {
+                    "q": "Should we replace a role with an agent or automate part of it?",
+                    "a": "Automate part of it. “Replace a headcount” is almost always the wrong framing because most roles mix repetitive work with judgement, chasing people for context, and accountability that has to sit with a person.\n\nThe framing that works is removing the repetitive majority of a role, keeping the person for the rest. That is also a far easier project to scope, to evaluate, and to reverse if it does not work."
+                }
+            ]
+        },
+        {
+            "slug": "integrating-agents-with-existing-systems",
+            "name": "Working with the systems you already have",
+            "order": 12,
+            "h1": "Can an AI agent work with our existing software?",
+            "tagline": "Yes — and integration is rarely the hard part. What breaks is that your systems were built assuming the caller was correct.",
+            "description": "What actually makes AI agent integration difficult: not connectors, but the fact that internal APIs assume a correct caller, have no idempotency, and lack the compensating actions an unreliable client needs.",
+            "keywords": [
+                "can AI agents work with existing software",
+                "AI agent integration services",
+                "AI agent API integration",
+                "connect AI agent to internal systems",
+                "agent integration legacy systems"
+            ],
+            "audience": [
+                "Leaders told integration will be the expensive part",
+                "Teams connecting an agent to internal APIs for the first time",
+                "Anyone whose systems predate the idea of an unreliable caller"
+            ],
+            "theQuestion": "Our stack is a mix of old and new. How hard is it to connect an agent to it?",
+            "answerFirst": "Connecting is straightforward — if a system has an API, an agent can call it, and if it does not, the same wrapper you would write for any other client works here too. The difficulty is elsewhere: your internal APIs were almost certainly designed on the assumption that the caller knows what it is doing. An agent does not. It will retry a request that already succeeded, pass a plausible but wrong identifier, call things in an order no human would, and occasionally invent a parameter. So the integration work is not connectors, it is making each endpoint safe for an unreliable client — idempotency keys so a retry cannot double-charge, strict validation so a hallucinated argument is rejected rather than accepted, and a compensating action for anything that cannot be undone. Budget for that rather than for the plumbing.",
+            "body": [
+                "The integration question is usually asked as a compatibility question, and compatibility is rarely the obstacle. REST, GraphQL, SOAP, a database, a CLI, a screen-scraped internal tool — all of it can be exposed to an agent, and the Model Context Protocol has made the wiring more uniform than it was. If your systems can be called by a script, they can be called by an agent.",
+                "What is genuinely different is the caller’s reliability. Internal APIs accumulate assumptions: that the client will not call this twice, that the ID passed in came from a previous response rather than being made up, that steps happen in a sensible order, that a field is either present and valid or absent. Those assumptions hold for code you wrote and they do not hold for a model. This is why teams report that integration was harder than expected — not because connecting was hard, but because every endpoint the agent touches turns out to need hardening it never needed before.",
+                "Idempotency is the specific thing to fix first. Agents retry: on a timeout, on a transient error, on a partial response the model decided looked wrong. Without an idempotency key, a retried refund is two refunds and a retried email is two emails. This is a well-understood distributed-systems problem with a well-understood solution, and it is the single highest-value change you can make to an API before an agent touches it.",
+                "The second is validation at the boundary, and the rule is that the model’s output is untrusted input. Not because the model is bad, but because it is a probabilistic component and this is how you treat those. Validate the shape, validate that referenced entities exist, validate that the caller is entitled to act on them, and reject rather than coerce — a rejected call the agent can retry correctly is much better than a coerced call that half-succeeds. Where an action genuinely cannot be undone, the answer is not better validation but an approval gate."
+            ],
+            "asset": {
+                "kind": "table",
+                "title": "What integration work actually consists of",
+                "intro": "Almost none of this is about connectivity. Each row is an assumption your systems make that an agent violates.",
+                "columns": [
+                    "Assumption in your API",
+                    "How an agent breaks it",
+                    "What to add"
+                ],
+                "rows": [
+                    [
+                        "The client will not call this twice",
+                        "Retries on timeouts and partial responses",
+                        "Idempotency keys — do this first"
+                    ],
+                    [
+                        "IDs come from a previous response",
+                        "Passes a plausible, invented identifier",
+                        "Existence checks before the write"
+                    ],
+                    [
+                        "Steps happen in a sensible order",
+                        "Calls step three before step one",
+                        "Explicit state validation, not implicit ordering"
+                    ],
+                    [
+                        "Fields are valid or absent",
+                        "Invents a parameter that looks right",
+                        "Strict schema validation; reject unknown fields"
+                    ],
+                    [
+                        "The caller is entitled to this record",
+                        "Acts on whatever ID it produced",
+                        "Authorise per call against the end user"
+                    ],
+                    [
+                        "Someone will notice a bad batch",
+                        "Runs it a thousand times in a minute",
+                        "Rate limits and a bulk-operation ceiling"
+                    ],
+                    [
+                        "Errors are read and handled",
+                        "Retries the same failing call in a loop",
+                        "Bounded retries, distinct terminal errors"
+                    ],
+                    [
+                        "An operation can be redone if wrong",
+                        "Cannot be — the email is sent",
+                        "A compensating action, or an approval gate"
+                    ]
+                ],
+                "note": "Every row is ordinary defensive engineering. That is the point — agent integration is mostly a distributed-systems problem, which is good news, because it means the skills already exist on your team."
+            },
+            "secondAsset": {
+                "kind": "table",
+                "title": "Integration approaches, by what you can change",
+                "intro": "Pick the row that matches your constraints rather than the newest option.",
+                "columns": [
+                    "Situation",
+                    "Approach",
+                    "Watch out for"
+                ],
+                "rows": [
+                    [
+                        "Modern internal APIs you control",
+                        "Expose tools directly, add idempotency and validation",
+                        "Tool schemas are billed on every call — attach few"
+                    ],
+                    [
+                        "Many services, want one interface",
+                        "An MCP server per domain",
+                        "It standardises transport, not authorisation — that is still yours"
+                    ],
+                    [
+                        "Legacy system with a stable API",
+                        "A thin wrapper that narrows the surface",
+                        "Expose the few operations needed, not the whole API"
+                    ],
+                    [
+                        "Legacy system with no API",
+                        "A queue plus a worker, agent writes intent",
+                        "Now asynchronous — the agent must handle pending states"
+                    ],
+                    [
+                        "Third-party SaaS",
+                        "Their API, scoped credentials",
+                        "Rate limits, and their idempotency guarantees may not exist"
+                    ],
+                    [
+                        "Read-only reporting need",
+                        "Text-to-SQL against a replica with a row-level policy",
+                        "Never the primary database; never without permission filtering"
+                    ]
+                ],
+                "note": "The last row is worth stressing: agents that query data directly are the fastest way to deliver value and the fastest way to leak across users. Read replica, permission filter before the query runs, no exceptions."
+            },
+            "relatedSolutions": [
+                "multi-tenant-ai-isolation",
+                "text-to-sql-reliability"
+            ],
+            "faq": [
+                {
+                    "q": "Can AI agents work with our existing software?",
+                    "a": "Yes. If a system can be called by a script — REST, GraphQL, SOAP, a database, even a CLI — it can be called by an agent, and MCP has made that wiring more uniform.\n\nThe cost is not in connecting. It is that your internal APIs assume a caller who knows what it is doing, and an agent does not: it retries, passes invented identifiers, and calls things out of order. Hardening those endpoints is the actual project."
+                },
+                {
+                    "q": "What is the first thing to fix before connecting an agent to our API?",
+                    "a": "Idempotency. Agents retry on timeouts, transient errors, and partial responses the model decided looked wrong.\n\nWithout an idempotency key, a retried refund is two refunds and a retried email is two emails. It is a well-understood problem with a well-understood fix, and it is the highest-value change you can make to an endpoint before an agent touches it."
+                },
+                {
+                    "q": "Do we need to rebuild our legacy systems to use AI agents?",
+                    "a": "No. A thin wrapper that exposes only the few operations the agent needs is usually the right answer, and narrowing the surface is a feature rather than a compromise — fewer tools means fewer tokens per call and fewer ways to go wrong.\n\nIf a system has no API at all, have the agent write intent to a queue and let a conventional worker perform the action. That keeps the unreliable component out of the write path entirely."
+                },
+                {
+                    "q": "Is MCP the right way to integrate agents with internal systems?",
+                    "a": "It is a good way to standardise how tools are described and transported, and it removes a lot of bespoke glue.\n\nWhat it does not do is authorise anything. MCP standardises the protocol, not permissions — the agent still needs to act with the calling user’s entitlements, and every tool call still needs validating against what that user may do. Treat MCP as plumbing, not as a security boundary."
+                }
+            ]
         }
     ]
 }
