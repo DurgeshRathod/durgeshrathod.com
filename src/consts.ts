@@ -106,11 +106,19 @@ export const PROFILES = {
 export const SAME_AS: readonly string[] = Object.values(PROFILES);
 
 /*
-  Six items, capped deliberately. The desktop nav needs ~940px of intrinsic width and only
-  displays at >=1024px; an eighth item would not fit. Scorecard and Notes are reachable from
-  /tools, the footer, the ⌘K palette and — for the scorecard — every CTA on the site, so
-  dropping them from the top level costs little. 'For leaders' earns a slot because it is the
-  only tier aimed at people who can approve spend.
+  Six items, and the cap is measured rather than guessed. At the >=1024px breakpoint where
+  the desktop nav appears, the row needs: logo 153px + nav + right-hand controls 195px +
+  container padding 96px + two 16px gaps. Six items put the nav at 483px and the row at
+  959px, leaving 65px of headroom. A seventh item takes the row to 1023px — one pixel under
+  the breakpoint, which is not a margin, so seven is genuinely not available.
+
+  Notes replaced About here on 2026-08-04. /notes is 16 pages and the largest content
+  section on the site, and it had no header link and no link from the homepage body, so it
+  was reachable only via the footer and the ⌘K palette — the weakest internal linking on
+  the site attached to its biggest section. About is the one item that already has a
+  homepage body link, so it is the cheapest to demote.
+
+  'For leaders' keeps its slot because it is the only tier aimed at people who approve spend.
 */
 export const NAV = [
   { label: 'Solutions', href: '/solutions' },
@@ -118,13 +126,13 @@ export const NAV = [
   { label: 'For leaders', href: '/for-leaders' },
   { label: 'Tools', href: '/tools' },
   { label: 'Work', href: '/work' },
-  { label: 'About', href: '/about' },
+  { label: 'Notes', href: '/notes' },
 ] as const;
 
 /** Secondary routes: footer and ⌘K only, to keep the top nav inside its width budget. */
 export const NAV_SECONDARY = [
   { label: 'Scorecard', href: '/scorecard' },
-  { label: 'Notes', href: '/notes' },
+  { label: 'About', href: '/about' },
   { label: 'Contact', href: '/contact' },
 ] as const;
 
